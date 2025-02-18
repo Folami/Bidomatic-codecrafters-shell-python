@@ -52,21 +52,21 @@ def tokenize_command(command_line):
 
 
 def process_arguments(parts):
-    """Processes arguments, handling single quotes and backslashes correctly."""
+    """Processes arguments, handling single quotes and backslashes."""
     args = []
     for arg in parts:
         if arg.startswith("'") and arg.endswith("'"):
-            # Preserve backslashes inside single quotes
-            processed_arg = arg[1:-1].replace("\\", "\\\\")  
+            # Remove the single quotes but keep backslashes literal
+            processed_arg = arg[1:-1]
             args.append(processed_arg)
         else:
             try:
-                # shlex.split handles double quotes correctly
-                shlex_split_args = shlex.split(arg)
+                shlex_split_args = shlex.split(arg)  # Use shlex for double quotes and other escapes
                 args.extend(shlex_split_args)
             except:
                 args.append(arg)  # If shlex fails, append the original arg
     return args
+
 
 
 def execute_command(command, args):
