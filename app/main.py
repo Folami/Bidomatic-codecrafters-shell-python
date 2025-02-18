@@ -1,5 +1,6 @@
 import sys
 import os
+import subprocess
 
 shBuiltins = ["echo", "exit", "type"]
 
@@ -52,16 +53,16 @@ def find_executable(command):
 
 def run_external_command(command, args):
     try:
-        # subprocess.run handles the execution and waiting for the command
-        result = subprocess.run([command] + args, capture_output=True, text=True, check=True)
-        print(result.stdout, end="") # Print the output of the command
-    except subprocess.CalledProcessError as e:
-        print(f"{command}: command failed with exit code {e.returncode}")
-        print(e.stderr, end="", file=sys.stderr) # Print error to stderr
+        result = subprocess.run([command] + args)
+        if result.returncode != 0:
+            print(f"{command}: command failed with exit code {result.returncode}")
     except FileNotFoundError:
         print(f"{command}: command not found")
     except Exception as e:
-        print(f"An error occurred while running {command}: {e}")
-
+        print(f"{command}: error: {e}")
+    except subprocess.CalledProcessError as e:
+        print(f"{command}: command failed with exit code {e.returncode}")
+        print(e.stderr, end="", file=sys.stderr) # Print error to stderr
+    
 if __name__ == "__main__":
     main()
