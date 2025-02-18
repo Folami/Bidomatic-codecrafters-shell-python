@@ -1,5 +1,7 @@
 import sys
 
+shBuiltins = ["echo", "exit", "type"]
+
 def main():
     while True:
         # Uncomment this block to pass the first stage
@@ -11,6 +13,12 @@ def main():
                 break
             case "echo":
                 print(" ".join(args))
+            case "type":
+                if args[0] in shBuiltins:
+                    print(f"{args[0]} is a shell builtin")
+                else:
+                    print(f"invalid command: not found")
+
             case default:
                 sys.stdout.write(f"{command}: command not found\n")
     return
