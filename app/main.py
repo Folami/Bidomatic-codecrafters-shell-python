@@ -12,13 +12,78 @@ def find_executable(command):
             return candidate
     return None
 
+def custom_split(s):
+    """
+    Splits the input string into tokens.
+    
+    Supports:
+      - Unquoted words separated by whitespace.
+      - Double-quoted strings (with backslashes processed).
+      - Single-quoted strings (with backslashes processed, contrary to POSIX defaults).
+      - Backslash as an escape character in all contexts.
+    """
+    tokens = []
+    current = []
+    state = None   # None, "single", or "double"
+    escape = False
+    # Define common escape mappings.
+    escapes = {'n': '\n', 't': '\t', 'r': '\r'}
+    
+    for c in s:
+        if escape:
+            # When in escape mode, map common sequences or use the character as is.
+            current.append(escapes.get(c, c))
+            escape = False
+            continue
+        
+        if c == '\\':
+            # Start escape mode regardless of current quoting state.
+            escape = True
+            continue
+        
+        if state is None:
+            # Outside of any quotes.
+            if c in " \t":
+                if current:
+                    tokens.append(''.join(current))
+                    current = []
+            elif c == "'":
+                state = "single"
+            elif c == '"':
+                state = "double"
+            else:
+                current.append(c)
+        elif state == "double":
+            # Inside double quotes.
+            if c == '"':
+                state = None
+            else:
+                current.append(c)
+        elif state == "single":
+            # Inside single quotes.
+            if c == "'":
+                state = None
+            else:
+                current.append(c)
+    if escape:
+        # If there's a trailing backslash, append it literally.
+        current.append('\\')
+    if current:
+        tokens.append(''.join(current))
+    return tokens
+
 def main():
     while True:
         sys.stdout.write("$ ")
-        # Read input and split into command and arguments.
-        tokens = input().split(" ")
-        if not tokens or tokens[0] == "":
+        try:
+            line = input()
+        except EOFError:
+            break  # Exit on end-of-file (Ctrl+D)
+        
+        tokens = custom_split(line)
+        if not tokens:
             continue
+
         command, *args = tokens
         match command:
             case "exit":
@@ -42,9 +107,7 @@ def main():
                 if not args:
                     print("cd: missing operand")
                 else:
-                    # Expand the '~' character to the user's home directory.
                     new_dir = os.path.expanduser(args[0])
-                    # If the path is not absolute, convert it to an absolute path.
                     if not os.path.isabs(new_dir):
                         new_dir = os.path.abspath(new_dir)
                     try:
@@ -56,7 +119,6 @@ def main():
                     except Exception as e:
                         print(f"cd: error: {e}")
             case default:
-                # Attempt to run the external command with the provided arguments.
                 try:
                     result = subprocess.run([command] + args)
                     if result.returncode != 0:
