@@ -14,35 +14,36 @@ def find_executable(command):
 
 def custom_split(s):
     """
-    Splits the input string into tokens.
-    
-    Supports:
+    Splits the input string into tokens, supporting:
       - Unquoted words separated by whitespace.
-      - Double-quoted strings (with backslashes processed).
-      - Single-quoted strings (with backslashes processed, contrary to POSIX defaults).
-      - Backslash as an escape character in all contexts.
+      - Double-quoted strings.
+      - Single-quoted strings.
+      - Backslashes as escape characters in all contexts, even within single quotes.
+    
+    For example:
+      Input: echo 'It\'s a test' "Another \"test\"" unquoted\ word
+      Output: ['echo', "It's a test", 'Another "test"', 'unquoted word']
     """
     tokens = []
     current = []
-    state = None   # None, "single", or "double"
+    state = None  # None, "single", or "double"
     escape = False
-    # Define common escape mappings.
+    # Map common escape sequences.
     escapes = {'n': '\n', 't': '\t', 'r': '\r'}
-    
+
     for c in s:
         if escape:
-            # When in escape mode, map common sequences or use the character as is.
+            # Append the mapped escape or the character itself.
             current.append(escapes.get(c, c))
             escape = False
             continue
-        
+
         if c == '\\':
-            # Start escape mode regardless of current quoting state.
             escape = True
             continue
-        
+
         if state is None:
-            # Outside of any quotes.
+            # Not inside any quotes.
             if c in " \t":
                 if current:
                     tokens.append(''.join(current))
@@ -54,19 +55,18 @@ def custom_split(s):
             else:
                 current.append(c)
         elif state == "double":
-            # Inside double quotes.
             if c == '"':
                 state = None
             else:
                 current.append(c)
         elif state == "single":
-            # Inside single quotes.
             if c == "'":
                 state = None
             else:
+                # Process backslashes within single quotes as escapes.
                 current.append(c)
     if escape:
-        # If there's a trailing backslash, append it literally.
+        # Append a trailing backslash if needed.
         current.append('\\')
     if current:
         tokens.append(''.join(current))
@@ -80,11 +80,13 @@ def main():
         except EOFError:
             break  # Exit on end-of-file (Ctrl+D)
         
+        # Tokenize using our custom tokenizer.
         tokens = custom_split(line)
         if not tokens:
             continue
 
         command, *args = tokens
+
         match command:
             case "exit":
                 break
@@ -119,6 +121,7 @@ def main():
                     except Exception as e:
                         print(f"cd: error: {e}")
             case default:
+                # Attempt to run external commands.
                 try:
                     result = subprocess.run([command] + args)
                     if result.returncode != 0:
@@ -127,7 +130,6 @@ def main():
                     print(f"{command}: command not found")
                 except Exception as e:
                     print(f"{command}: error: {e}")
-    return
 
 if __name__ == "__main__":
     main()
