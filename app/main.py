@@ -8,8 +8,8 @@ def main():
     # Wait for user input
     while True:
         command = input()
-        #if command == "exit":
-         #   break
+        if command == "exit":
+            break
         print(f"{command}: command not found")
         sys.stdout.write("$ ")
 
