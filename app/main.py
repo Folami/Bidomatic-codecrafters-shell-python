@@ -2,7 +2,7 @@ import sys
 import os
 import subprocess
 
-shBuiltins = ["echo", "exit", "type", "pwd"]
+shBuiltins = ["echo", "exit", "type", "pwd", "cd"]
 
 def find_executable(command):
     """Search for an executable file in the PATH and return its full path if found."""
@@ -15,7 +15,7 @@ def find_executable(command):
 def main():
     while True:
         sys.stdout.write("$ ")
-        # Wait for user input and split into command and arguments.
+        # Read input and split into command and arguments.
         tokens = input().split(" ")
         if not tokens or tokens[0] == "":
             continue
@@ -37,8 +37,23 @@ def main():
                     else:
                         print(f"{args[0]}: not found")
             case "pwd":
-                # Print the current working directory.
                 print(os.getcwd())
+            case "cd":
+                if not args:
+                    print("cd: missing operand")
+                else:
+                    # Expand '~' and convert relative paths to absolute.
+                    new_dir = os.path.expanduser(args[0])
+                    if not os.path.isabs(new_dir):
+                        new_dir = os.path.abspath(new_dir)
+                    try:
+                        os.chdir(new_dir)
+                    except FileNotFoundError:
+                        print(f"cd: {args[0]}: No such file or directory")
+                    except NotADirectoryError:
+                        print(f"cd: {args[0]}: Not a directory")
+                    except Exception as e:
+                        print(f"cd: error: {e}")
             case default:
                 # Attempt to run the external command with the provided arguments.
                 try:
