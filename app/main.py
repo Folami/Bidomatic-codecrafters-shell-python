@@ -2,7 +2,7 @@ import sys
 import os
 import subprocess
 
-shBuiltins = ["echo", "exit", "type"]
+shBuiltins = ["echo", "exit", "type", "pwd"]
 
 def find_executable(command):
     """Search for an executable file in the PATH and return its full path if found."""
@@ -15,8 +15,7 @@ def find_executable(command):
 def main():
     while True:
         sys.stdout.write("$ ")
-        # Read input and split into command and arguments.
-        # (Note: this simple split does not handle quotes/escapes.)
+        # Wait for user input and split into command and arguments.
         tokens = input().split(" ")
         if not tokens or tokens[0] == "":
             continue
@@ -37,6 +36,9 @@ def main():
                         print(f"{args[0]} is {executable}")
                     else:
                         print(f"{args[0]}: not found")
+            case "pwd":
+                # Print the current working directory.
+                print(os.getcwd())
             case default:
                 # Attempt to run the external command with the provided arguments.
                 try:
