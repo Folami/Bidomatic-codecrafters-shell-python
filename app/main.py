@@ -47,6 +47,8 @@ def tokenize_command(command_line):
             if current_part:
                 parts.append(current_part)
                 current_part = ""
+        elif char == "\\" and not in_single_quotes and not in_double_quotes:
+            continue
         else:
             current_part += char
     if current_part:
