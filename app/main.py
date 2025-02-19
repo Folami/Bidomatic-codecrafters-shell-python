@@ -8,83 +8,77 @@ def inputPrompt():
 
 def main():
     shBuiltins = ["echo", "exit", "type", "pwd", "cd"]
-    
-    """Main function of the shell program."""
+
     while True:
         command_line = inputPrompt()
-        if not command_line:  # Handle empty input
+        if not command_line:
             continue
 
         try:
-            # Use our custom tokenizer (without shlex) to split the input
-            tokens = manual_tokenize(command_line)
+            tokens = custom_tokenize(command_line)  # Use custom tokenizer
             if not tokens:
                 continue
 
-            # The first token is the command; the rest are arguments
-            command = tokens[0]
-            args = tokens[1:]
-            execute_command(command, args, shBuiltins)
+            command, *parts = tokens
+            args = custom_process_arguments(parts)  # Use custom argument processor
 
-        except EOFError:  # Handle Ctrl+D
+            execute_command(command, args)
+
+        except EOFError:
             break
-        except Exception as e:  # Handle other exceptions
+        except Exception as e:
             print(f"An error occurred: {e}")
 
-def manual_tokenize(s):
-    """
-    Manually tokenizes the input string into tokens, supporting:
-      - Unquoted text (tokens separated by whitespace)
-      - Double-quoted strings: backslashes escape the next character
-      - Single-quoted strings: backslashes also escape the next character (non‐POSIX behavior)
-      - Backslashes outside quotes escape the following character
-    """
+
+def custom_tokenize(command_line):
+    """Custom tokenizer to handle quoting and backslashes."""
     tokens = []
-    current = []        # List of characters for the current token
-    state = None        # Can be None, 'single', or 'double'
-    escape = False      # True if the previous character was a backslash
+    in_single_quotes = False
+    in_double_quotes = False
+    current_token = ""
 
-    for char in s:
-        if escape:
-            # Append the next character literally, regardless of quoting state
-            current.append(char)
-            escape = False
-            continue
+    for char in command_line:
+        if char == "'" and not in_double_quotes:
+            if in_single_quotes:
+                tokens.append(current_token)
+                current_token = ""
+            in_single_quotes = not in_single_quotes
+        elif char == '"' and not in_single_quotes:
+            if in_double_quotes:
+                tokens.append(current_token)
+                current_token = ""
+            in_double_quotes = not in_double_quotes
+        elif char == "\\" and (in_single_quotes or in_double_quotes):
+            # Handle backslashes within quotes (literally)
+            current_token += char
+        elif char == " " and not in_single_quotes and not in_double_quotes:
+            if current_token:
+                tokens.append(current_token)
+                current_token = ""
+        else:
+            current_token += char
 
-        if char == '\\':
-            escape = True
-            continue
+    if current_token:
+        tokens.append(current_token)
 
-        if state is None:
-            # Not inside any quotes
-            if char == "'":
-                state = "single"
-            elif char == '"':
-                state = "double"
-            elif char.isspace():
-                if current:
-                    tokens.append("".join(current))
-                    current = []
-            else:
-                current.append(char)
-        elif state == "single":
-            # Inside single quotes, we want to support backslash escapes as well.
-            if char == "'":
-                state = None
-            else:
-                current.append(char)
-        elif state == "double":
-            if char == '"':
-                state = None
-            else:
-                current.append(char)
-    # If we ended with an escape, add the literal backslash
-    if escape:
-        current.append('\\')
-    # If there's any remaining text, add it as a token
-    if current:
-        tokens.append("".join(current))
     return tokens
+
+
+def custom_process_arguments(parts):
+    """Custom argument processor to handle quotes and backslashes."""
+    args = []
+    for arg in parts:
+        if arg.startswith("'") and arg.endswith("'"):
+            # Remove single quotes and handle backslashes literally
+            processed_arg = arg[1:-1].replace("\\\\", "\\").replace("\\'", "'").replace("\\\"", "\"")
+            args.append(processed_arg)
+        elif arg.startswith('"') and arg.endswith('"'):
+            processed_arg = arg[1:-1].replace("\\\\", "\\").replace("\\'", "'").replace("\\\"", "\"")
+            args.append(processed_arg)
+        else:
+            args.append(arg)
+
+    return args
 
 def execute_command(command, args, shBuiltins):
     """Executes the command, handling built-ins and external commands."""
