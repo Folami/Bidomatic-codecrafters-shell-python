@@ -47,8 +47,6 @@ def tokenize_command(command_line):
             if current_part:
                 parts.append(current_part)
                 current_part = ""
-        elif char == "\\" and not in_single_quotes and not in_double_quotes:
-            continue
         else:
             current_part += char
     if current_part:
@@ -57,19 +55,18 @@ def tokenize_command(command_line):
 
 
 def process_arguments(parts):
-    """Processes arguments, handling single quotes and backslashes."""
+    """Processes arguments, correctly handling single quotes and backslashes."""
     args = []
     for arg in parts:
         if arg.startswith("'") and arg.endswith("'"):
-            # Remove the single quotes but keep backslashes literal
-            processed_arg = arg[1:-1]
+            # Remove single quotes and handle backslashes and single quotes literally
+            processed_arg = arg[1:-1].replace("\\\\", "\\").replace("\\'", "'").replace("\\\"", "\"") # Unescape \\, \' and \"
+            args.append(processed_arg)
+        elif arg.startswith('"') and arg.endswith('"'):
+            processed_arg = arg[1:-1].replace("\\\\", "\\").replace("\\'", "'").replace("\\\"", "\"") # Unescape \\, \' and \"
             args.append(processed_arg)
         else:
-            try:
-                shlex_split_args = shlex.split(arg)  # Use shlex for double quotes and other escapes
-                args.extend(shlex_split_args)
-            except:
-                args.append(arg)  # If shlex fails, append the original arg
+            args.append(arg) # If no quotes, add the arg as it is
     return args
 
 
