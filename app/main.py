@@ -9,7 +9,7 @@ def inputPrompt():
 def main():
     # List of built-in commands.
     shBuiltins = ["echo", "exit", "type", "pwd", "cd"]
-    
+
     """Main function of the shell program."""
     while True:
         command_line = inputPrompt()
@@ -38,58 +38,98 @@ def manual_tokenize(s):
       - Unquoted text (tokens separated by whitespace)
       - Double-quoted strings: backslashes escape the next character
       - Single-quoted strings: backslashes are preserved literally
-      - Backslashes outside single quotes escape the following character
-
-    Examples:
-      Input: echo 'world\\ntest'
-      → Tokens: ["echo", "world\\ntest"]
-
+      - Support for nested literal single-quoted segments within double quotes.
+    
+    For example:
       Input: echo 'script\\"helloexample\\"world'
-      → Tokens: ["echo", "script\\\"helloexample\\\"world"]
+             → Token: [ "echo", "script\\\"helloexample\\\"world" ]
+      
+      Input: cat "/tmp/baz/'f 9'" "/tmp/baz/'f  \\1'" "/tmp/baz/'f \\67\\'" 
+             → Tokens:
+                [ "cat",
+                  "/tmp/baz/'f 9'",
+                  "/tmp/baz/'f  \\1'",
+                  "/tmp/baz/'f \\67\\'" ]
     """
     tokens = []
-    current = []        # List of characters in the current token
+    current = []        # List of characters in the current token.
     state = None        # None, 'single', or 'double'
-    escape = False      # True if the previous character was a backslash
+    escape = False      # True if the previous character was a backslash.
+    i = 0
+    n = len(s)
+    while i < n:
+        char = s[i]
 
-    for char in s:
-        # Process escapes outside of single quotes
+        # Handle escapes (only outside single quotes).
         if state != "single":
             if escape:
-                # When escaping, append the next character literally
                 current.append(char)
                 escape = False
+                i += 1
                 continue
             if char == '\\':
                 escape = True
+                i += 1
                 continue
         else:
-            # Inside single quotes, backslashes are not special.
-            # They are taken literally.
+            # Inside single quotes, backslashes are literal.
             pass
 
-        # Process quotes and whitespace
+        # Handle states.
         if state is None:
-            if char == "'":
-                state = "single"
-            elif char == '"':
+            if char == '"':
                 state = "double"
+                i += 1
+                continue
+            elif char == "'":
+                state = "single"
+                i += 1
+                continue
             elif char.isspace():
                 if current:
                     tokens.append("".join(current))
                     current = []
+                i += 1
+                continue
             else:
                 current.append(char)
+                i += 1
+                continue
         elif state == "single":
             if char == "'":
                 state = None
+                i += 1
+                continue
             else:
                 current.append(char)
+                i += 1
+                continue
         elif state == "double":
             if char == '"':
                 state = None
+                i += 1
+                continue
+            elif char == "'" and not escape:
+                # Within double quotes, treat a single-quoted substring as literal.
+                # Look ahead for the matching single quote.
+                j = i + 1
+                while j < n and s[j] != "'":
+                    j += 1
+                if j < n:  # Found matching single quote.
+                    literal_segment = s[i:j+1]  # Include both quotes.
+                    current.append(literal_segment)
+                    i = j + 1
+                    continue
+                else:
+                    # No matching single quote; treat the single quote as a normal character.
+                    current.append(char)
+                    i += 1
+                    continue
             else:
                 current.append(char)
+                i += 1
+                continue
+
     # If an escape remains at the end (outside single quotes), append a literal backslash.
     if escape:
         current.append('\\')
@@ -147,8 +187,8 @@ def execute_cd(args):
         print("cd: missing operand")
         return
 
-    new_dir = os.path.expanduser(args[0])  # Handle ~ expansion
-    if not os.path.isabs(new_dir):         # Convert relative paths to absolute
+    new_dir = os.path.expanduser(args[0])  # Handle ~ expansion.
+    if not os.path.isabs(new_dir):         # Convert relative paths to absolute.
         new_dir = os.path.abspath(new_dir)
 
     try:
