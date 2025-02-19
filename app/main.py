@@ -129,8 +129,13 @@ def exit_shell():
     sys.exit(0)
 
 def execute_echo(args):
-    """Executes the echo command."""
-    print(" ".join(args))
+   """Executes the echo command."""
+   if '-n' in args:
+       args.remove('-n')
+       print(" ".join(args), end='')
+   else:
+       print(" ".join(args))
+
 
 def execute_type(args, shBuiltins):
     """Executes the type command."""
@@ -186,7 +191,6 @@ def run_external_command(command, args):
     try:
         # Construct the command string to be executed by the shell.
         command_string = " ".join([command] + args)  # Join command and arguments
-        
         # Execute the command using /bin/sh -c to let the shell handle quoting.
         result = subprocess.run(["/bin/sh", "-c", command_string], capture_output=True, text=True, check=True)
         print(result.stdout, end="")
