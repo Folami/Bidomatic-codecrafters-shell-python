@@ -58,84 +58,64 @@ def manual_tokenize(s):
     i = 0
     n = len(s)
     while i < n:
-        char = s[i]
-
-        # Handle escapes (only outside single quotes).
-        if state != "single":
-            if escape:
-                current.append(char)
-                escape = False
-                i += 1
-                continue
-            if char == '\\':
-                escape = True
-                i += 1
-                continue
+        if s[i].isspace():
+            i += 1
+            continue
+        elif s[i] == "'":
+            token, i = handle_single_quote(s, i)
+        elif s[i] == '"':
+            token, i = handle_double_quote(s, i)
         else:
-            # Inside single quotes, backslashes are literal.
-            pass
-
-        # Handle states.
-        if state is None:
-            if char == '"':
-                state = "double"
-                i += 1
-                continue
-            elif char == "'":
-                state = "single"
-                i += 1
-                continue
-            elif char.isspace():
-                if current:
-                    tokens.append("".join(current))
-                    current = []
-                i += 1
-                continue
-            else:
-                current.append(char)
-                i += 1
-                continue
-        elif state == "single":
-            if char == "'":
-                state = None
-                i += 1
-                continue
-            else:
-                current.append(char)
-                i += 1
-                continue
-        elif state == "double":
-            if char == '"':
-                state = None
-                i += 1
-                continue
-            elif char == "'" and not escape:
-                # Within double quotes, treat a single-quoted substring as literal.
-                # Look ahead for the matching single quote.
-                j = i + 1
-                while j < n and s[j] != "'":
-                    j += 1
-                if j < n:  # Found matching single quote.
-                    literal_segment = s[i:j+1]  # Include both quotes.
-                    current.append(literal_segment)
-                    i = j + 1
-                    continue
-                else:
-                    # No matching single quote; treat the single quote as a normal character.
-                    current.append(char)
-                    i += 1
-                    continue
-            else:
-                current.append(char)
-                i += 1
-                continue
-
-    # If an escape remains at the end (outside single quotes), append a literal backslash.
-    if escape:
-        current.append('\\')
-    if current:
-        tokens.append("".join(current))
+            token, i = handle_unquoted(s, i)
+        tokens.append(token)
     return tokens
+
+def handle_unquoted(s, i):
+    """
+    Handles tokenization of unquoted text, interpreting backslashes as escape characters.
+    """
+    token_chars = []
+    n = len(s)
+    while i < n and not s[i].isspace() and s[i] not in ("'", '"'):
+        if s[i] == '\\' and i + 1 < n:
+            i += 1  # Skip the backslash
+        token_chars.append(s[i])
+        i += 1
+    return ''.join(token_chars), i
+
+def handle_single_quote(s, i):
+    """
+    Handles tokenization of single-quoted strings, preserving backslashes literally.
+    """
+    token_chars = []
+    i += 1  # Skip the opening single quote
+    n = len(s)
+    while i < n:
+        if s[i] == "'":
+            i += 1  # Skip the closing single quote
+            break
+        token_chars.append(s[i])
+        i += 1
+    return ''.join(token_chars), i
+
+def handle_double_quote(s, i):
+    """
+    Handles tokenization of double-quoted strings, interpreting backslashes as escape characters.
+    """
+    token_chars = []
+    i += 1  # Skip the opening double quote
+    n = len(s)
+    while i < n:
+        if s[i] == '\\' and i + 1 < n:
+            i += 1  # Skip the backslash
+        elif s[i] == '"':
+            i += 1  # Skip the closing double quote
+            break
+        token_chars.append(s[i])
+        i += 1
+    return ''.join(token_chars), i
+
+
 
 def execute_command(command, args, shBuiltins):
     """Executes the command, handling built-ins and external commands."""
