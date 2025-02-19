@@ -88,6 +88,7 @@ def handle_single_quote(s, i):
         i += 1
     return ''.join(token_chars), i
 
+
 def handle_double_quote(s, i):
     """
     Handles tokenization of double-quoted strings, interpreting backslashes as escape characters.
