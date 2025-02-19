@@ -185,8 +185,8 @@ def run_external_command(command, args):
     """Runs an external command using subprocess."""
     try:
         # Construct the command string to be executed by the shell.
-        command_string = " ".join([command] + args)
-
+        command_string = " ".join([command] + args)  # Join command and arguments
+        
         # Execute the command using /bin/sh -c to let the shell handle quoting.
         result = subprocess.run(["/bin/sh", "-c", command_string], capture_output=True, text=True, check=True)
         print(result.stdout, end="")
@@ -198,6 +198,7 @@ def run_external_command(command, args):
         print(f"{command}: command not found")
     except Exception as e:
         print(f"An error occurred while running {command}: {e}")
+
 
 if __name__ == "__main__":
     main()
