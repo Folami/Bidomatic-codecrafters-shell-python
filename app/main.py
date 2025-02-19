@@ -32,23 +32,13 @@ def main():
         except Exception as e:  # Handle other exceptions
             print(f"An error occurred: {e}")
 
-def manual_tokenize(s):
+def manual_tokenize(cmd_line):
     """
     Manually tokenizes the input string into tokens, supporting:
       - Unquoted text (tokens separated by whitespace)
       - Double-quoted strings: backslashes escape the next character
       - Single-quoted strings: backslashes are preserved literally
       - Support for nested literal single-quoted segments within double quotes.
-    
-    For example:
-      Input: echo 'script\\"helloexample\\"world'
-             → Token: [ "echo", "script\\\"helloexample\\\"world" ]
-      
-      Input: cat "/tmp/baz/'f 9'" "/tmp/baz/'f  \\1'" "/tmp/baz/'f \\67\\'" 
-             → Tokens:
-                [ "cat",
-                  "/tmp/baz/'f 9'",
-                  "/tmp/baz/'f  \\1'",
                   "/tmp/baz/'f \\67\\'" ]
     """
     tokens = []
@@ -56,17 +46,17 @@ def manual_tokenize(s):
     state = None        # None, 'single', or 'double'
     escape = False      # True if the previous character was a backslash.
     i = 0
-    n = len(s)
+    n = len(cmd_line)
     while i < n:
-        if s[i].isspace():
+        if cmd_line[i].isspace():
             i += 1
             continue
-        elif s[i] == "'":
-            token, i = handle_single_quote(s, i)
-        elif s[i] == '"':
-            token, i = handle_double_quote(s, i)
+        elif cmd_line[i] == "'":
+            token, i = handle_single_quote(cmd_line, i)
+        elif cmd_line[i] == '"':
+            token, i = handle_double_quote(cmd_line, i)
         else:
-            token, i = handle_unquoted(s, i)
+            token, i = handle_unquoted(cmd_line, i)
         tokens.append(token)
     return tokens
 
@@ -193,8 +183,13 @@ def find_executable(command):
 def run_external_command(command, args):
     """Runs an external command using subprocess."""
     try:
-        result = subprocess.run([command] + args, capture_output=True, text=True, check=True)
+        # Construct the command string to be executed by the shell.
+        command_string = " ".join([command] + args)
+
+        # Execute the command using /bin/sh -c to let the shell handle quoting.
+        result = subprocess.run(["/bin/sh", "-c", command_string], capture_output=True, text=True, check=True)
         print(result.stdout, end="")
+
     except subprocess.CalledProcessError as e:
         print(f"{command}: command failed with exit code {e.returncode}")
         print(e.stderr, end="", file=sys.stderr)
