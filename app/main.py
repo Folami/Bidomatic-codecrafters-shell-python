@@ -58,10 +58,6 @@ def process_arguments(parts):
     """Processes arguments, handling single quotes and backslashes."""
     args = []
     for arg in parts:
-        # if arg contains \, remove the backslash and keep the next character
-        if "\"" in arg:
-            processed_arg = arg.replace("\"", "'")
-            #args.append(processed_arg)
         if arg.startswith("'") and arg.endswith("'"):
             # Remove the single quotes but keep backslashes literal
             processed_arg = arg[1:-1]
