@@ -6,38 +6,6 @@ import sys
 # List of shell built-in commands
 sh_builtins = ['echo', 'exit', 'type', 'pwd', 'cd']
 
-def manual_tokenize(cmd_line):
-    """
-    Tokenizes the command line input, handling single quotes, double quotes, and backslashes.
-    """
-    tokens = []
-    current = []
-    single_quote = False
-    double_quote = False
-    escape = False
-
-    for c in cmd_line:
-        if escape:
-            current.append(c)
-            escape = False
-        elif c == '\\':
-            escape = True
-        elif c == "'" and not double_quote:
-            single_quote = not single_quote
-        elif c == '"' and not single_quote:
-            double_quote = not double_quote
-        elif c.isspace() and not single_quote and not double_quote:
-            if current:
-                tokens.append(''.join(current))
-                current = []
-        else:
-            current.append(c)
-
-    if current:
-        tokens.append(''.join(current))
-
-    return tokens
-
 def input_prompt():
     """
     Displays the shell prompt and reads user input.
@@ -70,53 +38,6 @@ def exit_shell():
     """
     sys.exit(0)
 
-def execute_echo(args):
-    """
-    Implements the echo command with support for the -n flag and output redirection.
-    """
-    if not args:
-        print()
-        return
-
-    suppress_newline = False
-    start_index = 0
-
-    # Check for the -n flag
-    if args[0] == '-n':
-        suppress_newline = True
-        start_index = 1
-
-    output = ' '.join(args[start_index:])
-
-    # Handle output redirection
-    if '>' in args:
-        try:
-            redir_index = args.index('>')
-            file_path = args[redir_index + 1]
-            output = ' '.join(args[start_index:redir_index])
-            write_file(output, file_path, suppress_newline)
-        except (IndexError, IOError) as e:
-            print(f"Error writing to file: {e}")
-        return
-
-    # Print to console
-    if suppress_newline:
-        print(output, end='')
-    else:
-        print(output)
-
-def write_file(content, file_path, suppress_newline):
-    """
-    Writes the given content to the specified file.
-    """
-    try:
-        with open(file_path, 'w') as f:
-            f.write(content)
-            if not suppress_newline:
-                f.write('\n')
-    except IOError as e:
-        print(f"Error writing to file: {e}")
-
 def execute_type(args):
     """
     Implements the type command to identify if a command is a shell builtin or an external executable.
@@ -141,6 +62,12 @@ def execute_pwd():
     Prints the current working directory.
     """
     print(os.getcwd())
+
+def execute_echo(args):
+    """
+    Executes the echo command.
+    """
+    print(" ".join(args))
 
 def execute_cd(args):
     """
@@ -187,7 +114,13 @@ def main():
         if not command_line:
             continue
 
-        tokens = manual_tokenize(command_line)
+        try:
+            # Use shlex to split the command line into tokens
+            tokens = shlex.split(command_line, posix=True)
+        except ValueError as e:
+            print(f"Error parsing command: {e}")
+            continue
+
         if not tokens:
             continue
 
