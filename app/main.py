@@ -1,10 +1,46 @@
 import os
-import shlex
 import subprocess
 import sys
 
 # List of shell built-in commands
 sh_builtins = ['echo', 'exit', 'type', 'pwd', 'cd']
+
+def manual_tokenize(cmd_line):
+    """
+    Tokenizes the command line input, handling:
+      - Unquoted text (tokens separated by whitespace)
+      - Double-quoted strings: backslashes escape the next character
+      - Single-quoted strings: backslashes are preserved literally
+    """
+    tokens = []
+    current = []
+    single_quote = False
+    double_quote = False
+    escape = False
+
+    for c in cmd_line:
+        if escape:
+            current.append(c)
+            escape = False
+        elif c == '\\':
+            # If we're in a single-quoted context, preserve the backslash literally.
+            if single_quote:
+                current.append(c)
+            else:
+                escape = True
+        elif c == "'" and not double_quote:
+            single_quote = not single_quote
+        elif c == '"' and not single_quote:
+            double_quote = not double_quote
+        elif c.isspace() and not single_quote and not double_quote:
+            if current:
+                tokens.append(''.join(current))
+                current = []
+        else:
+            current.append(c)
+    if current:
+        tokens.append(''.join(current))
+    return tokens
 
 def input_prompt():
     """
@@ -78,7 +114,6 @@ def execute_cd(args):
         return
 
     new_dir = os.path.expanduser(args[0])
-
     try:
         os.chdir(new_dir)
     except OSError as e:
@@ -114,12 +149,7 @@ def main():
         if not command_line:
             continue
 
-        try:
-            # Use shlex to split the command line into tokens
-            tokens = shlex.split(command_line, posix=True)
-        except ValueError as e:
-            print(f"Error parsing command: {e}")
-            continue
+        tokens = manual_tokenize(command_line)
 
         if not tokens:
             continue
