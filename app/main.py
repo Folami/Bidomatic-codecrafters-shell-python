@@ -1,162 +1,147 @@
-import os
-import subprocess
-import sys
+import sys, os, subprocess
+from dataclasses import dataclass
 
-# List of shell built-in commands
-sh_builtins = ['echo', 'exit', 'type', 'pwd', 'cd']
+supported_commands = ["exit", "echo", "type", "pwd"]
+path_str = os.environ.get("PATH")
 
-def manual_tokenize(cmd_line):
-    """
-    Tokenizes the command line input, handling:
-      - Unquoted text (tokens separated by whitespace)
-      - Double-quoted strings: backslashes escape the next character
-      - Single-quoted strings: backslashes are preserved literally
-    """
-    tokens = []
-    current = []
-    single_quote = False
-    double_quote = False
-    escape = False
+@dataclass
+class Arg:
+    val: str
+    type: str
 
-    for c in cmd_line:
-        if escape:
-            current.append(c)
-            escape = False
-        elif c == '\\':
-            # If we're in a single-quoted context, preserve the backslash literally.
-            if single_quote:
-                current.append(c)
-            else:
-                escape = True
-        elif c == "'" and not double_quote:
-            single_quote = not single_quote
-        elif c == '"' and not single_quote:
-            double_quote = not double_quote
-        elif c.isspace() and not single_quote and not double_quote:
-            if current:
-                tokens.append(''.join(current))
-                current = []
-        else:
-            current.append(c)
-    if current:
-        tokens.append(''.join(current))
-    return tokens
-
-def input_prompt():
-    """
-    Displays the shell prompt and reads user input.
-    """
-    try:
-        return input('$ ')
-    except EOFError:
-        return 'exit'
-
-def execute_command(command, args):
-    """
-    Executes the given command with the provided arguments.
-    """
-    if command == 'exit':
-        exit_shell()
-    elif command == 'echo':
-        execute_echo(args)
-    elif command == 'type':
-        execute_type(args)
-    elif command == 'pwd':
-        execute_pwd()
-    elif command == 'cd':
-        execute_cd(args)
-    else:
-        run_external_command(command, args)
-
-def exit_shell():
-    """
-    Exits the shell.
-    """
-    sys.exit(0)
-
-def execute_type(args):
-    """
-    Implements the type command to identify if a command is a shell builtin or an external executable.
-    """
-    if not args:
-        print("type: missing operand")
-        return
-
-    target_command = args[0]
-
-    if target_command in sh_builtins:
-        print(f"{target_command} is a shell builtin")
-    else:
-        executable = find_executable(target_command)
-        if executable:
-            print(f"{target_command} is {executable}")
-        else:
-            print(f"{target_command}: not found")
-
-def execute_pwd():
-    """
-    Prints the current working directory.
-    """
-    print(os.getcwd())
-
-def execute_echo(args):
-    """
-    Executes the echo command.
-    """
-    print(" ".join(args))
-
-def execute_cd(args):
-    """
-    Changes the current working directory.
-    """
-    if not args:
-        print("cd: missing operand")
-        return
-
-    new_dir = os.path.expanduser(args[0])
-    try:
-        os.chdir(new_dir)
-    except OSError as e:
-        print(f"cd: {new_dir}: {e.strerror}")
-
-def find_executable(command):
-    """
-    Searches for the specified command in the system's PATH.
-    """
-    for dir in os.getenv('PATH', '').split(os.pathsep):
-        potential_path = os.path.join(dir, command)
-        if os.path.isfile(potential_path) and os.access(potential_path, os.X_OK):
-            return potential_path
-    return None
-
-def run_external_command(command, args):
-    """
-    Executes an external command with the provided arguments.
-    """
-    try:
-        subprocess.run([command] + args)
-    except FileNotFoundError:
-        print(f"{command}: command not found")
-    except Exception as e:
-        print(f"{command}: {e}")
+@dataclass
+class Command:
+    val: str
+    args: [Arg]
 
 def main():
-    """
-    Main loop of the shell.
-    """
     while True:
-        command_line = input_prompt()
-        if not command_line:
-            continue
+        sys.stdout.write("$ ")
+        sys.stdout.flush()
+        # Wait for user input
+        command = input()
+        command_and_params = parse_command_and_args(command)
+        command_key = command_and_params.val
+        paths = path_str.split(":") if path_str else []
+        args = command_and_params.args
+        handle_command(paths=paths, command=command_key, args=args)
 
-        tokens = manual_tokenize(command_line)
-        if not tokens:
-            continue
+def handle_command(paths: [str], command: str, args: [Arg]):
+    if command == "exit":
+        sys.exit(int(args[0].val))
+    elif command == "echo":
+        handle_echo_command(args)
+    elif command == "cat":
+        handle_cat_command(args)
+    elif command == "pwd":
+        sys.stdout.write(f"{os.getcwd()}\n")
+    elif command == "cd":
+        handle_cd_command(args)
+    elif command == "type":
+        handle_type_command(paths, args[0].val)
+    else:
+        custom_command = get_custom_command_if_exists(command=command)
+        custom_args = list(map(lambda n: n.val, args))
+        if custom_command is None:
+            sys.stdout.write(f"{command}: not found\n")
+        else:
+            result = subprocess.run(
+                [custom_command, *custom_args], capture_output=True, text=True
+            )
+            sys.stdout.write(result.stdout)
+def handle_cat_command(args: [Arg]):
+    what_to_echo = ""
+    for arg in args:
+        if arg.type == "file":
+            f = open(arg.val, "r")
+            what_to_echo += f.read()
+        else:
+            raise Exception(f"cat: {arg.val}: No such file or directory")
+    sys.stdout.write(f"{what_to_echo.strip()}\n")
+def handle_echo_command(args: [Arg]):
+    what_to_echo = ""
+    for arg in args:
+        what_to_echo += " "
+        what_to_echo += arg.val
+    sys.stdout.write(f"{what_to_echo.strip()}\n")
 
-        command = tokens[0]
-        command_args = tokens[1:]
+def parse_command_and_args(raw_args: str):
+    args_striped = strip_arg(raw_args)
+    args = []
+    for arg in args_striped[1:]:
+        if os.path.isfile(arg):
+            args.append(Arg(arg, "file"))
+        elif os.path.isdir(arg):
+            args.append(Arg(arg, "dir"))
+        else:
+            args.append(Arg(arg, "simple"))
+    return Command(args_striped[0], args)
 
-        execute_command(command, command_args)
+def strip_arg(full_arg: str):
+    in_single_quote = False
+    in_double_quote = False
+    last_backslash = False
+    args = []
+    arg = ""
+    for ch in full_arg:
+        if last_backslash:
+            arg += ch
+            last_backslash = False
+        elif ch == "\\" and in_single_quote:
+            arg += ch
+            last_backslash = False
+        elif ch == "\\" and not in_single_quote and not in_double_quote:
+            last_backslash = True
+        elif ch == " " and not in_single_quote and not in_double_quote:
+            if arg:
+                args.append(arg)
+                arg = ""
+        elif ch == "'" and not in_double_quote:
+            if in_single_quote:
+                args.append(arg)
+                arg = ""
+                in_single_quote = False
+            else:
+                in_single_quote = True
 
-if __name__ == '__main__':
+        elif ch == '"' and not in_single_quote:
+            if in_double_quote:
+                args.append(arg)
+                arg = ""
+                in_double_quote = False
+            else:
+                in_double_quote = True
+        else:
+            arg += ch
+    if arg:
+        args.append(arg)
+    if in_single_quote or in_double_quote:
+        raise Exception("Invalid args passed")
+    return args
+def handle_cd_command(args: [Arg]):
+    path = args[0].val
+    if path == "~":
+        os.chdir(f"{os.path.expanduser(path)}")
+    elif args[0].type == "dir":
+        os.chdir(f"{path}")
+    else:
+        sys.stdout.write(f"cd: {path}: No such file or directory\n")
+def handle_type_command(paths: [str], target_command: str):
+    command_path_key = None
+    if len(paths) > 0:
+        for path in paths:
+            if os.path.isfile(f"{path}/{target_command}"):
+                command_path_key = f"{path}/{target_command}"
+    if target_command in supported_commands:
+        sys.stdout.write(f"{target_command} is a shell builtin\n")
+    elif command_path_key is not None:
+        sys.stdout.write(f"{target_command} is {command_path_key}\n")
+    else:
+        sys.stdout.write(f"{target_command}: not found\n")
+def get_custom_command_if_exists(command: str):
+    for path in path_str.split(":"):
+        if os.path.isfile(f"{path}/{command}"):
+            return f"{path}/{command}"
+    return None
+if __name__ == "__main__":
     main()
