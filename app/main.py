@@ -96,10 +96,24 @@ def find_executable(command):
 
 def run_external_command(command, args):
     """
-    Executes an external command with the provided arguments.
+    Executes an external command with the provided arguments, including redirection.
     """
+    output_file = None
+    if '>' in args:
+        output_file_index = args.index('>')
+        if output_file_index + 1 < len(args):
+            output_file = args[output_file_index + 1]
+            args = args[:output_file_index]
+        else:
+            print("Syntax error: missing output file after '>'")
+            return
+
     try:
-        subprocess.run([command] + args)
+        if output_file:
+            with open(output_file, 'w') as f:
+                subprocess.run([command] + args, stdout=f, stderr=subprocess.STDOUT)
+        else:
+            subprocess.run([command] + args)
     except FileNotFoundError:
         print(f"{command}: command not found")
     except Exception as e:
