@@ -15,6 +15,22 @@ def input_prompt():
     except EOFError:
         return 'exit'
 
+def execute_command(command, args):
+    """
+    Executes the given command with the provided arguments.
+    """
+    if command == 'exit':
+        exit_shell()
+    elif command == 'echo':
+        execute_echo(args)
+    elif command == 'type':
+        execute_type(args)
+    elif command == 'pwd':
+        execute_pwd()
+    elif command == 'cd':
+        execute_cd(args)
+    else:
+        run_external_command(command, args)
 
 
 def exit_shell():
