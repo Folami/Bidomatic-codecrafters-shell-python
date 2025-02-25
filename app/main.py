@@ -120,26 +120,54 @@ def find_executable(command):
 
 def run_external_command(command, args):
     """
-    Executes an external command with the provided arguments and handles output redirection.
+    Executes an external command with the provided arguments and handles output and error redirection.
     """
     try:
-        redirect_index = -1
-        for i, arg in enumerate(args):
-            if arg in ['>', '1>']:
-                redirect_index = i
-                break
+        stdout_redirect = None
+        stderr_redirect = None
+        stdout_file = None
+        stderr_file = None
 
-        if redirect_index != -1:
-            output_file = args[redirect_index + 1]
-            args = args[:redirect_index]
-            with open(output_file, 'w') as f:
-                result = subprocess.run([command] + args, stdout=f, stderr=subprocess.PIPE, text=True)
-                if result.stderr:
-                    print(result.stderr.strip())
-        else:
-            result = subprocess.run([command] + args, stderr=subprocess.PIPE, text=True)
-            if result.stderr:
-                print(result.stderr.strip())
+        # Check for stdout redirection
+        if '>' in args:
+            idx = args.index('>')
+            if idx + 1 < len(args):
+                stdout_file = args[idx + 1]
+                args = args[:idx]
+                stdout_redirect = open(stdout_file, 'w')
+            else:
+                print("Syntax error: no file specified for stdout redirection")
+                return
+
+        # Check for stderr redirection
+        if '2>' in args:
+            idx = args.index('2>')
+            if idx + 1 < len(args):
+                stderr_file = args[idx + 1]
+                args = args[:idx]
+                stderr_redirect = open(stderr_file, 'w')
+            else:
+                print("Syntax error: no file specified for stderr redirection")
+                return
+
+        # Execute the command with appropriate redirections
+        result = subprocess.run(
+            [command] + args,
+            stdout=stdout_redirect or subprocess.PIPE,
+            stderr=stderr_redirect or subprocess.PIPE,
+            text=True
+        )
+
+        # Close any opened files
+        if stdout_redirect:
+            stdout_redirect.close()
+        if stderr_redirect:
+            stderr_redirect.close()
+
+        # Print stderr to console if not redirected
+        if result.stderr and not stderr_redirect:
+            print(result.stderr.strip())
+
     except FileNotFoundError:
         print(f"{command}: command not found")
     except subprocess.CalledProcessError as e:
