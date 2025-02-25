@@ -17,28 +17,21 @@ def input_prompt():
 
 def execute_command(command, args):
     """
-    Executes the given command with the provided arguments and handles output redirection.
+    Executes the given command with the provided arguments.
     """
-    command, args, output_file = handle_redirection(command, args)
-    if command is None:
-        return
+    if command == 'exit':
+        exit_shell()
+    elif command == 'echo':
+        execute_echo(args)
+    elif command == 'type':
+        execute_type(args)
+    elif command == 'pwd':
+        execute_pwd()
+    elif command == 'cd':
+        execute_cd(args)
+    else:
+        run_external_command(command, args)
 
-    try:
-        if command == 'exit':
-            exit_shell()
-        elif command == 'echo':
-            execute_echo(args)
-        elif command == 'type':
-            execute_type(args)
-        elif command == 'pwd':
-            execute_pwd()
-        elif command == 'cd':
-            execute_cd(args)
-        else:
-            run_external_command(command, args, output_file)
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
 
 def exit_shell():
     """
@@ -102,20 +95,29 @@ def find_executable(command):
             return potential_path
     return None
 
-def run_external_command(command, args, output_file=None):
+def run_external_command(command, args):
     """
     Executes an external command with the provided arguments and handles output redirection.
     """
     try:
-        if output_file:
+        if '>' in args:
+            redirect_index = args.index('>')
+            output_file = args[redirect_index + 1]
+            args = args[:redirect_index]
             with open(output_file, 'w') as f:
-                subprocess.run([command] + args, stdout=f, stderr=subprocess.STDOUT)
+                subprocess.run([command] + args, stdout=f, stderr=subprocess.PIPE, check=True)
         else:
-            subprocess.run([command] + args)
+            subprocess.run([command] + args, check=True)
     except FileNotFoundError:
         print(f"{command}: command not found")
+    except subprocess.CalledProcessError as e:
+        print(f"{command}: command failed with exit code {e.returncode}")
+        if e.stderr:
+            print(e.stderr.decode().strip())
     except Exception as e:
         print(f"{command}: {e}")
+
+
 
 def handle_redirection(command, args):
     """
@@ -136,6 +138,7 @@ def handle_redirection(command, args):
         return None, None, None
 
     return command, args[:redirect_index], output_file
+
 
 def main():
     """
@@ -163,3 +166,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
