@@ -66,9 +66,22 @@ def execute_pwd():
 
 def execute_echo(args):
     """
-    Executes the echo command.
+    Executes the echo command and handles redirection.
     """
-    print(" ".join(args))
+    redirect_index = -1
+    for i, arg in enumerate(args):
+        if arg in ['>', '1>']:
+            redirect_index = i
+            break
+
+    if redirect_index != -1:
+        output_file = args[redirect_index + 1]
+        content = " ".join(args[:redirect_index])
+        with open(output_file, 'w') as f:
+            f.write(content)
+    else:
+        print(" ".join(args))
+
 
 def execute_cd(args):
     """
@@ -100,8 +113,13 @@ def run_external_command(command, args):
     Executes an external command with the provided arguments and handles output redirection.
     """
     try:
-        if '>' in args:
-            redirect_index = args.index('>')
+        redirect_index = -1
+        for i, arg in enumerate(args):
+            if arg in ['>', '1>']:
+                redirect_index = i
+                break
+
+        if redirect_index != -1:
             output_file = args[redirect_index + 1]
             args = args[:redirect_index]
             with open(output_file, 'w') as f:
@@ -116,6 +134,7 @@ def run_external_command(command, args):
             print(e.stderr.decode().strip())
     except Exception as e:
         print(f"{command}: {e}")
+
 
 
 
