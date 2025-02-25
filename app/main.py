@@ -17,20 +17,36 @@ def input_prompt():
 
 def execute_command(command, args):
     """
-    Executes the given command with the provided arguments.
+    Executes the given command with the provided arguments and handles output redirection.
     """
-    if command == 'exit':
-        exit_shell()
-    elif command == 'echo':
-        execute_echo(args)
-    elif command == 'type':
-        execute_type(args)
-    elif command == 'pwd':
-        execute_pwd()
-    elif command == 'cd':
-        execute_cd(args)
-    else:
-        run_external_command(command, args)
+    command, args, output_file = handle_redirection(command, args)
+    if command is None:
+        return
+
+    if output_file:
+        # Redirect stdout to the file
+        original_stdout = sys.stdout
+        sys.stdout = open(output_file, 'w')
+
+    try:
+        if command == 'exit':
+            exit_shell()
+        elif command == 'echo':
+            execute_echo(args)
+        elif command == 'type':
+            execute_type(args)
+        elif command == 'pwd':
+            execute_pwd()
+        elif command == 'cd':
+            execute_cd(args)
+        else:
+            run_external_command(command, args)
+    finally:
+        if output_file:
+            # Restore original stdout
+            sys.stdout.close()
+            sys.stdout = original_stdout
+
 
 
 def exit_shell():
@@ -100,12 +116,8 @@ def run_external_command(command, args):
     Executes an external command with the provided arguments and handles output redirection.
     """
     try:
-        if '>' in args or '1>' in args:
-            if '>' in args:
-                redirect_index = args.index('>')
-            else:
-                redirect_index = args.index('1>')
-
+        if '>' in args:
+            redirect_index = args.index('>')
             output_file = args[redirect_index + 1]
             args = args[:redirect_index]
             with open(output_file, 'w') as f:
@@ -120,6 +132,29 @@ def run_external_command(command, args):
             print(e.stderr.decode().strip())
     except Exception as e:
         print(f"{command}: {e}")
+
+
+
+def handle_redirection(command, args):
+    """
+    Handles output redirection for a command.
+    """
+    redirect_index = -1
+    for i, arg in enumerate(args):
+        if arg == '>':
+            redirect_index = i
+            break
+
+    if redirect_index == -1:
+        return command, args, None
+
+    output_file = args[redirect_index + 1] if redirect_index + 1 < len(args) else None
+    if not output_file:
+        print("Syntax error: no file specified for redirection")
+        return None, None, None
+
+    return command, args[:redirect_index], output_file
+
 
 def main():
     """
@@ -147,3 +182,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
