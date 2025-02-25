@@ -15,41 +15,38 @@ def input_prompt():
     except EOFError:
         return 'exit'
 
-def execute_command(command_line):
+def execute_command(command, args):
     """
-    Executes the given command line, handling built-ins and external commands.
+    Executes the given command with the provided arguments and handles output redirection.
     """
-    # Split the command line into command and arguments
+    command, args, output_file = handle_redirection(command, args)
+    if command is None:
+        return
+
+    if output_file:
+        # Redirect stdout to the file
+        original_stdout = sys.stdout
+        sys.stdout = open(output_file, 'w')
+
     try:
-        tokens = shlex.split(command_line, posix=True)
-    except ValueError as e:
-        print(f"Error parsing command: {e}")
-        return
-
-    if not tokens:
-        return
-
-    # Check for output redirection
-    if '>' in tokens:
-        # Ensure there's exactly one '>' and it's not the first or last token
-        if tokens.count('>') == 1 and tokens[-2] == '>':
-            command = tokens[0]
-            args = tokens[1:-2]
-            output_file = tokens[-1]
-            redirect_output = True
+        if command == 'exit':
+            exit_shell()
+        elif command == 'echo':
+            execute_echo(args)
+        elif command == 'type':
+            execute_type(args)
+        elif command == 'pwd':
+            execute_pwd()
+        elif command == 'cd':
+            execute_cd(args)
         else:
-            print("Syntax error: invalid use of '>'")
-            return
-    else:
-        command = tokens[0]
-        args = tokens[1:]
-        output_file = None
-        redirect_output = False
+            run_external_command(command, args)
+    finally:
+        if output_file:
+            # Restore original stdout
+            sys.stdout.close()
+            sys.stdout = original_stdout
 
-    if command in sh_builtins:
-        execute_builtin(command, args)
-    else:
-        run_external_command(command, args, output_file, redirect_output)
 
 def execute_builtin(command, args):
     """
@@ -130,20 +127,46 @@ def find_executable(command):
             return potential_path
     return None
 
-def run_external_command(command, args, output_file=None, redirect_output=False):
+def run_external_command(command, args):
     """
-    Executes an external command with the provided arguments.
+    Executes an external command with the provided arguments and handles output redirection.
     """
+    command, args, output_file = handle_redirection(command, args)
+    if command is None:
+        return
+
     try:
-        if redirect_output and output_file:
-            with open(output_file, 'w') as outfile:
-                subprocess.run([command] + args, stdout=outfile, stderr=subprocess.PIPE)
+        if output_file:
+            with open(output_file, 'w') as f:
+                subprocess.run([command] + args, stdout=f, stderr=subprocess.STDOUT)
         else:
             subprocess.run([command] + args)
     except FileNotFoundError:
         print(f"{command}: command not found")
     except Exception as e:
         print(f"{command}: {e}")
+
+
+def handle_redirection(command, args):
+    """
+    Handles output redirection for a command.
+    """
+    redirect_index = -1
+    for i, arg in enumerate(args):
+        if arg == '>':
+            redirect_index = i
+            break
+
+    if redirect_index == -1:
+        return command, args, None
+
+    output_file = args[redirect_index + 1] if redirect_index + 1 < len(args) else None
+    if not output_file:
+        print("Syntax error: no file specified for redirection")
+        return None, None, None
+
+    return command, args[:redirect_index], output_file
+
 
 def main():
     """
