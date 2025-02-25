@@ -23,11 +23,6 @@ def execute_command(command, args):
     if command is None:
         return
 
-    if output_file:
-        # Redirect stdout to the file
-        original_stdout = sys.stdout
-        sys.stdout = open(output_file, 'w')
-
     try:
         if command == 'exit':
             exit_shell()
@@ -40,14 +35,10 @@ def execute_command(command, args):
         elif command == 'cd':
             execute_cd(args)
         else:
-            run_external_command(command, args)
-    finally:
-        if output_file:
-            # Restore original stdout
-            sys.stdout.close()
-            sys.stdout = original_stdout
+            run_external_command(command, args, output_file)
 
-
+    except Exception as e:
+        print(f"An error occurred: {e}")
 
 def exit_shell():
     """
@@ -111,14 +102,10 @@ def find_executable(command):
             return potential_path
     return None
 
-def run_external_command(command, args):
+def run_external_command(command, args, output_file=None):
     """
     Executes an external command with the provided arguments and handles output redirection.
     """
-    command, args, output_file = handle_redirection(command, args)
-    if command is None:
-        return
-
     try:
         if output_file:
             with open(output_file, 'w') as f:
@@ -129,7 +116,6 @@ def run_external_command(command, args):
         print(f"{command}: command not found")
     except Exception as e:
         print(f"{command}: {e}")
-
 
 def handle_redirection(command, args):
     """
@@ -150,7 +136,6 @@ def handle_redirection(command, args):
         return None, None, None
 
     return command, args[:redirect_index], output_file
-
 
 def main():
     """
