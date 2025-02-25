@@ -100,8 +100,12 @@ def run_external_command(command, args):
     Executes an external command with the provided arguments and handles output redirection.
     """
     try:
-        if '>' in args:
-            redirect_index = args.index('>')
+        if '>' in args or '1>' in args:
+            if '>' in args:
+                redirect_index = args.index('>')
+            else:
+                redirect_index = args.index('1>')
+
             output_file = args[redirect_index + 1]
             args = args[:redirect_index]
             with open(output_file, 'w') as f:
@@ -116,29 +120,6 @@ def run_external_command(command, args):
             print(e.stderr.decode().strip())
     except Exception as e:
         print(f"{command}: {e}")
-
-
-
-def handle_redirection(command, args):
-    """
-    Handles output redirection for a command.
-    """
-    redirect_index = -1
-    for i, arg in enumerate(args):
-        if arg == '>':
-            redirect_index = i
-            break
-
-    if redirect_index == -1:
-        return command, args, None
-
-    output_file = args[redirect_index + 1] if redirect_index + 1 < len(args) else None
-    if not output_file:
-        print("Syntax error: no file specified for redirection")
-        return None, None, None
-
-    return command, args[:redirect_index], output_file
-
 
 def main():
     """
@@ -166,4 +147,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
