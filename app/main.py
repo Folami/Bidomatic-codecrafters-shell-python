@@ -133,19 +133,21 @@ def run_external_command(command, args):
             output_file = args[redirect_index + 1]
             args = args[:redirect_index]
             with open(output_file, 'w') as f:
-                subprocess.run([command] + args, stdout=f, stderr=subprocess.PIPE, check=True)
+                result = subprocess.run([command] + args, stdout=f, stderr=subprocess.PIPE, text=True)
+                if result.stderr:
+                    print(result.stderr.strip())
         else:
-            subprocess.run([command] + args, check=True)
+            result = subprocess.run([command] + args, stderr=subprocess.PIPE, text=True)
+            if result.stderr:
+                print(result.stderr.strip())
     except FileNotFoundError:
         print(f"{command}: command not found")
     except subprocess.CalledProcessError as e:
         print(f"{command}: command failed with exit code {e.returncode}")
         if e.stderr:
-            print(e.stderr.decode().strip())
+            print(e.stderr.strip())
     except Exception as e:
         print(f"{command}: {e}")
-
-
 
 
 def handle_redirection(command, args):
