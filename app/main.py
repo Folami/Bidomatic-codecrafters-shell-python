@@ -68,19 +68,29 @@ def execute_echo(args):
     """
     Executes the echo command and handles redirection.
     """
-    redirect_index = -1
-    for i, arg in enumerate(args):
-        if arg in ['>', '1>']:
-            redirect_index = i
-            break
+    if '>' in args or '1>' in args:
+        try:
+            # Determine the redirection operator and its index
+            if '>' in args:
+                redirect_index = args.index('>')
+            else:
+                redirect_index = args.index('1>')
 
-    if redirect_index != -1:
-        output_file = args[redirect_index + 1]
-        content = " ".join(args[:redirect_index])
-        with open(output_file, 'w') as f:
-            f.write(content)
+            # Extract the output file path
+            output_file = args[redirect_index + 1]
+
+            # Content to be written is everything before the redirection operator
+            content = " ".join(args[:redirect_index])
+
+            # Write the content to the specified file
+            with open(output_file, 'w') as f:
+                f.write(content + '\n')
+        except (IndexError, IOError) as e:
+            print(f"echo: error handling redirection: {e}")
     else:
+        # No redirection; print to standard output
         print(" ".join(args))
+
 
 
 def execute_cd(args):
