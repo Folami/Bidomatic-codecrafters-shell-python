@@ -17,40 +17,7 @@ def input_prompt():
 
 def execute_command(command, args):
     """
-    Executes the given command with the provided arguments and handles output redirection.
-    """
-    command, args, output_file = handle_redirection(command, args)
-    if command is None:
-        return
-
-    if output_file:
-        # Redirect stdout to the file
-        original_stdout = sys.stdout
-        sys.stdout = open(output_file, 'w')
-
-    try:
-        if command == 'exit':
-            exit_shell()
-        elif command == 'echo':
-            execute_echo(args)
-        elif command == 'type':
-            execute_type(args)
-        elif command == 'pwd':
-            execute_pwd()
-        elif command == 'cd':
-            execute_cd(args)
-        else:
-            run_external_command(command, args)
-    finally:
-        if output_file:
-            # Restore original stdout
-            sys.stdout.close()
-            sys.stdout = original_stdout
-
-
-def execute_builtin(command, args):
-    """
-    Executes a shell built-in command.
+    Executes the given command with the provided arguments.
     """
     if command == 'exit':
         exit_shell()
@@ -63,7 +30,7 @@ def execute_builtin(command, args):
     elif command == 'cd':
         execute_cd(args)
     else:
-        print(f"{command}: command not found")
+        run_external_command(command, args)
 
 def exit_shell():
     """
@@ -129,44 +96,14 @@ def find_executable(command):
 
 def run_external_command(command, args):
     """
-    Executes an external command with the provided arguments and handles output redirection.
+    Executes an external command with the provided arguments.
     """
-    command, args, output_file = handle_redirection(command, args)
-    if command is None:
-        return
-
     try:
-        if output_file:
-            with open(output_file, 'w') as f:
-                subprocess.run([command] + args, stdout=f, stderr=subprocess.STDOUT)
-        else:
-            subprocess.run([command] + args)
+        subprocess.run([command] + args)
     except FileNotFoundError:
         print(f"{command}: command not found")
     except Exception as e:
         print(f"{command}: {e}")
-
-
-def handle_redirection(command, args):
-    """
-    Handles output redirection for a command.
-    """
-    redirect_index = -1
-    for i, arg in enumerate(args):
-        if arg == '>':
-            redirect_index = i
-            break
-
-    if redirect_index == -1:
-        return command, args, None
-
-    output_file = args[redirect_index + 1] if redirect_index + 1 < len(args) else None
-    if not output_file:
-        print("Syntax error: no file specified for redirection")
-        return None, None, None
-
-    return command, args[:redirect_index], output_file
-
 
 def main():
     """
@@ -176,7 +113,21 @@ def main():
         command_line = input_prompt()
         if not command_line:
             continue
-        execute_command(command_line)
+
+        try:
+            # Use shlex to split the command line into tokens
+            tokens = shlex.split(command_line, posix=True)
+        except ValueError as e:
+            print(f"Error parsing command: {e}")
+            continue
+
+        if not tokens:
+            continue
+
+        command = tokens[0]
+        command_args = tokens[1:]
+
+        execute_command(command, command_args)
 
 if __name__ == '__main__':
     main()
