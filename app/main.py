@@ -15,9 +15,45 @@ def input_prompt():
     except EOFError:
         return 'exit'
 
-def execute_command(command, args):
+def execute_command(command_line):
     """
-    Executes the given command with the provided arguments.
+    Executes the given command line, handling built-ins and external commands.
+    """
+    # Split the command line into command and arguments
+    try:
+        tokens = shlex.split(command_line, posix=True)
+    except ValueError as e:
+        print(f"Error parsing command: {e}")
+        return
+
+    if not tokens:
+        return
+
+    # Check for output redirection
+    if '>' in tokens:
+        # Ensure there's exactly one '>' and it's not the first or last token
+        if tokens.count('>') == 1 and tokens[-2] == '>':
+            command = tokens[0]
+            args = tokens[1:-2]
+            output_file = tokens[-1]
+            redirect_output = True
+        else:
+            print("Syntax error: invalid use of '>'")
+            return
+    else:
+        command = tokens[0]
+        args = tokens[1:]
+        output_file = None
+        redirect_output = False
+
+    if command in sh_builtins:
+        execute_builtin(command, args)
+    else:
+        run_external_command(command, args, output_file, redirect_output)
+
+def execute_builtin(command, args):
+    """
+    Executes a shell built-in command.
     """
     if command == 'exit':
         exit_shell()
@@ -30,7 +66,7 @@ def execute_command(command, args):
     elif command == 'cd':
         execute_cd(args)
     else:
-        run_external_command(command, args)
+        print(f"{command}: command not found")
 
 def exit_shell():
     """
@@ -94,24 +130,14 @@ def find_executable(command):
             return potential_path
     return None
 
-def run_external_command(command, args):
+def run_external_command(command, args, output_file=None, redirect_output=False):
     """
-    Executes an external command with the provided arguments, including redirection.
+    Executes an external command with the provided arguments.
     """
-    output_file = None
-    if '>' in args:
-        output_file_index = args.index('>')
-        if output_file_index + 1 < len(args):
-            output_file = args[output_file_index + 1]
-            args = args[:output_file_index]
-        else:
-            print("Syntax error: missing output file after '>'")
-            return
-
     try:
-        if output_file:
-            with open(output_file, 'w') as f:
-                subprocess.run([command] + args, stdout=f, stderr=subprocess.STDOUT)
+        if redirect_output and output_file:
+            with open(output_file, 'w') as outfile:
+                subprocess.run([command] + args, stdout=outfile, stderr=subprocess.PIPE)
         else:
             subprocess.run([command] + args)
     except FileNotFoundError:
@@ -127,21 +153,7 @@ def main():
         command_line = input_prompt()
         if not command_line:
             continue
-
-        try:
-            # Use shlex to split the command line into tokens
-            tokens = shlex.split(command_line, posix=True)
-        except ValueError as e:
-            print(f"Error parsing command: {e}")
-            continue
-
-        if not tokens:
-            continue
-
-        command = tokens[0]
-        command_args = tokens[1:]
-
-        execute_command(command, command_args)
+        execute_command(command_line)
 
 if __name__ == '__main__':
     main()
