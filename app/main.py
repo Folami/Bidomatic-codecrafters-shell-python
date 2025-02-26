@@ -70,19 +70,6 @@ def execute_echo(args):
     """
     stdout_redirect = None
     stderr_redirect = None
-    output_stream = sys.stdout  # Default to standard output
-
-    # Check for stderr redirection
-    if '2>' in args:
-        try:
-            redirect_index = args.index('2>')
-            stderr_file = args[redirect_index + 1]
-            stderr_redirect = open(stderr_file, 'w')
-            args = args[:redirect_index] + args[redirect_index + 2:]
-            output_stream = stderr_redirect
-        except (IndexError, IOError) as e:
-            print(f"echo: error handling stderr redirection: {e}", file=sys.stderr)
-            return
 
     # Check for stdout redirection
     if '>' in args or '1>' in args:
@@ -93,27 +80,33 @@ def execute_echo(args):
                 redirect_index = args.index('1>')
             stdout_file = args[redirect_index + 1]
             stdout_redirect = open(stdout_file, 'w')
-            args = args[:redirect_index] + args[redirect_index + 2:]
-            if output_stream == sys.stdout:  # Only set if not already set to stderr
-                output_stream = stdout_redirect
+            args = args[:redirect_index]
         except (IndexError, IOError) as e:
-            print(f"echo: error handling stdout redirection: {e}", file=sys.stderr)
+            print(f"echo: error handling stdout redirection: {e}")
+            return
+
+    # Check for stderr redirection
+    if '2>' in args:
+        try:
+            redirect_index = args.index('2>')
+            stderr_file = args[redirect_index + 1]
+            stderr_redirect = open(stderr_file, 'w')
+            args = args[:redirect_index]
+        except (IndexError, IOError) as e:
+            print(f"echo: error handling stderr redirection: {e}")
             return
 
     output = " ".join(args)
 
-    # Write to the appropriate stream
-    try:
-        output_stream.write(output + '\n')
-    except IOError as e:
-        print(f"echo: error writing output: {e}", file=sys.stderr)
-    finally:
-        # Close any opened files
-        if stdout_redirect:
-            stdout_redirect.close()
-        if stderr_redirect:
-            stderr_redirect.close()
-
+    # Write to stdout or stderr as needed
+    if stdout_redirect:
+        stdout_redirect.write(output + '\n')
+        stdout_redirect.close()
+    elif stderr_redirect:
+        stderr_redirect.write(output + '\n')
+        stderr_redirect.close()
+    else:
+        print(output)
 
 def execute_cd(args):
     """
