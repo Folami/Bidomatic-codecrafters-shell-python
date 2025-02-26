@@ -122,34 +122,46 @@ def run_external_command(command, args):
     """
     Executes an external command with the provided arguments and handles output and error redirection.
     """
-    try:
-        stdout_redirect = None
-        stderr_redirect = None
-        stdout_file = None
-        stderr_file = None
+    stdout_redirect = None
+    stderr_redirect = None
+    stdout_file = None
+    stderr_file = None
 
-        # Check for stdout redirection
-        if '>' in args:
-            idx = args.index('>')
-            if idx + 1 < len(args):
-                stdout_file = args[idx + 1]
-                args = args[:idx]
-                stdout_redirect = open(stdout_file, 'w')
+    # Parse arguments to handle redirection
+    i = 0
+    while i < len(args):
+        if args[i] in ('>', '1>'):
+            if i + 1 < len(args):
+                stdout_file = args[i + 1]
+                del args[i:i + 2]
             else:
                 print("Syntax error: no file specified for stdout redirection")
                 return
-
-        # Check for stderr redirection
-        if '2>' in args:
-            idx = args.index('2>')
-            if idx + 1 < len(args):
-                stderr_file = args[idx + 1]
-                args = args[:idx]
-                stderr_redirect = open(stderr_file, 'w')
+        elif args[i] == '2>':
+            if i + 1 < len(args):
+                stderr_file = args[i + 1]
+                del args[i:i + 2]
             else:
                 print("Syntax error: no file specified for stderr redirection")
                 return
+        else:
+            i += 1
 
+    # Open files for redirection if specified
+    if stdout_file:
+        try:
+            stdout_redirect = open(stdout_file, 'w')
+        except IOError as e:
+            print(f"Error opening file for stdout redirection: {e}")
+            return
+    if stderr_file:
+        try:
+            stderr_redirect = open(stderr_file, 'w')
+        except IOError as e:
+            print(f"Error opening file for stderr redirection: {e}")
+            return
+
+    try:
         # Execute the command with appropriate redirections
         result = subprocess.run(
             [command] + args,
@@ -158,13 +170,7 @@ def run_external_command(command, args):
             text=True
         )
 
-        # Close any opened files
-        if stdout_redirect:
-            stdout_redirect.close()
-        if stderr_redirect:
-            stderr_redirect.close()
-
-        # Print stderr to console if not redirected
+        # If stderr was not redirected to a file, print it to the console
         if result.stderr and not stderr_redirect:
             print(result.stderr.strip())
 
@@ -176,6 +182,13 @@ def run_external_command(command, args):
             print(e.stderr.strip())
     except Exception as e:
         print(f"{command}: {e}")
+    finally:
+        # Close any opened files
+        if stdout_redirect:
+            stdout_redirect.close()
+        if stderr_redirect:
+            stderr_redirect.close()
+
 
 
 def handle_redirection(command, args):
@@ -220,7 +233,6 @@ def main():
 
         command = tokens[0]
         command_args = tokens[1:]
-
         execute_command(command, command_args)
 
 if __name__ == '__main__':
