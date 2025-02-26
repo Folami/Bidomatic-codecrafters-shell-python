@@ -70,43 +70,34 @@ def execute_echo(args):
     """
     stdout_redirect = None
     stderr_redirect = None
+    content = []
 
-    # Check for stdout redirection
-    if '>' in args or '1>' in args:
-        try:
-            if '>' in args:
-                redirect_index = args.index('>')
-            else:
-                redirect_index = args.index('1>')
-            stdout_file = args[redirect_index + 1]
-            stdout_redirect = open(stdout_file, 'w')
-            args = args[:redirect_index]
-        except (IndexError, IOError) as e:
-            print(f"echo: error handling stdout redirection: {e}")
-            return
+    i = 0
+    while i < len(args):
+        if args[i] in ['>', '1>'] and i + 1 < len(args):
+            stdout_redirect = args[i + 1]
+            i += 2
+        elif args[i] == '2>' and i + 1 < len(args):
+            stderr_redirect = args[i + 1]
+            i += 2
+        else:
+            content.append(args[i])
+            i += 1
 
-    # Check for stderr redirection
-    if '2>' in args:
-        try:
-            redirect_index = args.index('2>')
-            stderr_file = args[redirect_index + 1]
-            stderr_redirect = open(stderr_file, 'w')
-            args = args[:redirect_index]
-        except (IndexError, IOError) as e:
-            print(f"echo: error handling stderr redirection: {e}")
-            return
+    output = " ".join(content)
 
-    output = " ".join(args)
+    try:
+        if stdout_redirect:
+            with open(stdout_redirect, 'w') as f:
+                f.write(output + '\n')
+        elif stderr_redirect:
+            with open(stderr_redirect, 'w') as f:
+                f.write(output + '\n')
+        else:
+            print(output)
+    except IOError as e:
+        print(f"echo: {e}", file=sys.stderr)
 
-    # Write to stdout or stderr as needed
-    if stdout_redirect:
-        stdout_redirect.write(output + '\n')
-        stdout_redirect.close()
-    elif stderr_redirect:
-        stderr_redirect.write(output + '\n')
-        stderr_redirect.close()
-    else:
-        print(output)
 
 def execute_cd(args):
     """
