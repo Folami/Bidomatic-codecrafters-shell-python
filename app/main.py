@@ -137,7 +137,7 @@ def run_external_command(command, args):
                 args = args[:idx] + args[idx+2:]
                 stdout_redirect = open(stdout_file, 'w')
             else:
-                print("Syntax error: no file specified for stdout redirection")
+                print("Syntax error: no file specified for stdout redirection", file=sys.stderr)
                 return
 
         # Check for stderr redirection
@@ -148,7 +148,7 @@ def run_external_command(command, args):
                 args = args[:idx] + args[idx+2:]
                 stderr_redirect = open(stderr_file, 'w')
             else:
-                print("Syntax error: no file specified for stderr redirection")
+                print("Syntax error: no file specified for stderr redirection", file=sys.stderr)
                 return
 
         # Execute the command with appropriate redirections
@@ -167,7 +167,7 @@ def run_external_command(command, args):
         if result.stderr and not stderr_redirect:
             print(result.stderr.strip(), file=sys.stderr)
 
-        if result.returncode != 0:
+        if result.returncode != 0 and stderr_redirect is None:
             print(f"{command}: command failed with exit code {result.returncode}", file=sys.stderr)
 
     except FileNotFoundError:
@@ -180,7 +180,6 @@ def run_external_command(command, args):
             stdout_redirect.close()
         if stderr_redirect:
             stderr_redirect.close()
-
 
 
 def handle_redirection(command, args):
