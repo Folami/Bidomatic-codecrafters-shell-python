@@ -130,14 +130,11 @@ def run_external_command(command, args):
 
         # Check for stdout redirection
         if '>' in args or '1>' in args:
-            if '>' in args:
-                idx = args.index('>')
-            else:
-                idx = args.index('1>')
-
+            redirect_symbol = '>' if '>' in args else '1>'
+            idx = args.index(redirect_symbol)
             if idx + 1 < len(args):
                 stdout_file = args[idx + 1]
-                args = args[:idx]
+                args = args[:idx] + args[idx+2:]
                 stdout_redirect = open(stdout_file, 'w')
             else:
                 print("Syntax error: no file specified for stdout redirection")
@@ -148,7 +145,7 @@ def run_external_command(command, args):
             idx = args.index('2>')
             if idx + 1 < len(args):
                 stderr_file = args[idx + 1]
-                args = args[:idx]
+                args = args[:idx] + args[idx+2:]
                 stderr_redirect = open(stderr_file, 'w')
             else:
                 print("Syntax error: no file specified for stderr redirection")
@@ -162,24 +159,28 @@ def run_external_command(command, args):
             text=True
         )
 
+        # Print stdout to console if not redirected
+        if result.stdout and not stdout_redirect:
+            print(result.stdout.strip())
+
+        # Print stderr to console if not redirected
+        if result.stderr and not stderr_redirect:
+            print(result.stderr.strip(), file=sys.stderr)
+
+        if result.returncode != 0:
+            print(f"{command}: command failed with exit code {result.returncode}", file=sys.stderr)
+
+    except FileNotFoundError:
+        print(f"{command}: command not found", file=sys.stderr)
+    except Exception as e:
+        print(f"{command}: {e}", file=sys.stderr)
+    finally:
         # Close any opened files
         if stdout_redirect:
             stdout_redirect.close()
         if stderr_redirect:
             stderr_redirect.close()
 
-        # Print stderr to console if not redirected
-        if result.stderr and not stderr_redirect:
-            print(result.stderr.strip())
-
-    except FileNotFoundError:
-        print(f"{command}: command not found")
-    except subprocess.CalledProcessError as e:
-        print(f"{command}: command failed with exit code {e.returncode}")
-        if e.stderr:
-            print(e.stderr.strip())
-    except Exception as e:
-        print(f"{command}: {e}")
 
 
 def handle_redirection(command, args):
