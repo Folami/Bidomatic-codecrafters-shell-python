@@ -125,9 +125,6 @@ def find_executable(command):
     return None
 
 def run_external_command(command, args):
-    """
-    Executes an external command with the provided arguments and handles output and error redirection.
-    """
     try:
         stdout_redirect = None
         stderr_redirect = None
@@ -141,7 +138,6 @@ def run_external_command(command, args):
             if idx + 1 < len(args):
                 stdout_file = args[idx + 1]
                 args = args[:idx] + args[idx+2:]
-                stdout_redirect = open(stdout_file, 'w')
             else:
                 print("Syntax error: no file specified for stdout redirection", file=sys.stderr)
                 return
@@ -152,7 +148,6 @@ def run_external_command(command, args):
             if idx + 1 < len(args):
                 stderr_file = args[idx + 1]
                 args = args[:idx] + args[idx+2:]
-                stderr_redirect = open(stderr_file, 'w')
             else:
                 print("Syntax error: no file specified for stderr redirection", file=sys.stderr)
                 return
@@ -172,6 +167,11 @@ def run_external_command(command, args):
         # Print stderr to console if not redirected
         if result.stderr and not stderr_redirect:
             print(result.stderr.strip(), file=sys.stderr)
+
+        # Write stderr to file if redirected
+        if stderr_file and result.stderr:
+            with open(stderr_file, 'w') as f:
+                f.write(result.stderr)
 
         if result.returncode != 0 and stderr_redirect is None:
             print(f"{command}: command failed with exit code {result.returncode}", file=sys.stderr)
