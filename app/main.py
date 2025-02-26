@@ -68,29 +68,45 @@ def execute_echo(args):
     """
     Executes the echo command and handles redirection.
     """
+    stdout_redirect = None
+    stderr_redirect = None
+
+    # Check for stdout redirection
     if '>' in args or '1>' in args:
         try:
-            # Determine the redirection operator and its index
             if '>' in args:
                 redirect_index = args.index('>')
             else:
                 redirect_index = args.index('1>')
-
-            # Extract the output file path
-            output_file = args[redirect_index + 1]
-
-            # Content to be written is everything before the redirection operator
-            content = " ".join(args[:redirect_index])
-
-            # Write the content to the specified file
-            with open(output_file, 'w') as f:
-                f.write(content + '\n')
+            stdout_file = args[redirect_index + 1]
+            stdout_redirect = open(stdout_file, 'w')
+            args = args[:redirect_index]
         except (IndexError, IOError) as e:
-            print(f"echo: error handling redirection: {e}")
-    else:
-        # No redirection; print to standard output
-        print(" ".join(args))
+            print(f"echo: error handling stdout redirection: {e}")
+            return
 
+    # Check for stderr redirection
+    if '2>' in args:
+        try:
+            redirect_index = args.index('2>')
+            stderr_file = args[redirect_index + 1]
+            stderr_redirect = open(stderr_file, 'w')
+            args = args[:redirect_index]
+        except (IndexError, IOError) as e:
+            print(f"echo: error handling stderr redirection: {e}")
+            return
+
+    output = " ".join(args)
+
+    # Write to stdout or stderr as needed
+    if stdout_redirect:
+        stdout_redirect.write(output + '\n')
+        stdout_redirect.close()
+    elif stderr_redirect:
+        stderr_redirect.write(output + '\n')
+        stderr_redirect.close()
+    else:
+        print(output)
 
 
 def execute_cd(args):
