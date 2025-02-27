@@ -66,7 +66,7 @@ def execute_pwd():
 
 def execute_echo(args):
     """
-    Executes the echo command and handles redirection.
+    Executes the echo command and handles redirection for both stdout and stderr.
     """
     stdout_redirect = None
     stderr_redirect = None
@@ -90,11 +90,13 @@ def execute_echo(args):
         if stdout_redirect:
             with open(stdout_redirect, 'w') as f:
                 f.write(output + '\n')
-        elif stderr_redirect:
-            with open(stderr_redirect, 'w') as f:
-                f.write(output + '\n')
         else:
             print(output)
+
+        # Handle stderr redirection (echo doesn't produce stderr naturally, but we create/truncate the file)
+        if stderr_redirect:
+            with open(stderr_redirect, 'w') as f:
+                f.write('')  # Echo has no stderr by default, so write empty string
     except IOError as e:
         print(f"echo: {e}", file=sys.stderr)
 
@@ -134,32 +136,25 @@ def run_external_command(command, args):
         stdout_file = None
         stderr_file = None
 
-        # Check for stdout redirection
-        if '>' in args or '1>' in args:
-            redirect_symbol = '>' if '>' in args else '1>'
-            idx = args.index(redirect_symbol)
-            if idx + 1 < len(args):
-                stdout_file = args[idx + 1]
-                args = args[:idx] + args[idx+2:]
+        # Process arguments to detect redirection
+        i = 0
+        command_args = []
+        while i < len(args):
+            if args[i] in ['>', '1>'] and i + 1 < len(args):
+                stdout_file = args[i + 1]
                 stdout_redirect = open(stdout_file, 'w')
-            else:
-                print("Syntax error: no file specified for stdout redirection", file=sys.stderr)
-                return
-
-        # Check for stderr redirection
-        if '2>' in args:
-            idx = args.index('2>')
-            if idx + 1 < len(args):
-                stderr_file = args[idx + 1]
-                args = args[:idx] + args[idx+2:]
+                i += 2
+            elif args[i] == '2>' and i + 1 < len(args):
+                stderr_file = args[i + 1]
                 stderr_redirect = open(stderr_file, 'w')
+                i += 2
             else:
-                print("Syntax error: no file specified for stderr redirection", file=sys.stderr)
-                return
+                command_args.append(args[i])
+                i += 1
 
         # Execute the command with appropriate redirections
         result = subprocess.run(
-            [command] + args,
+            [command] + command_args,
             stdout=stdout_redirect or subprocess.PIPE,
             stderr=stderr_redirect or subprocess.PIPE,
             text=True
@@ -188,6 +183,27 @@ def run_external_command(command, args):
             stderr_redirect.close()
 
 
+def handle_redirection(command, args):
+    """
+    Handles output redirection for a command.
+    """
+    redirect_index = -1
+    for i, arg in enumerate(args):
+        if arg == '>':
+            redirect_index = i
+            break
+
+    if redirect_index == -1:
+        return command, args, None
+
+    output_file = args[redirect_index + 1] if redirect_index + 1 < len(args) else None
+    if not output_file:
+        print("Syntax error: no file specified for redirection")
+        return None, None, None
+
+    return command, args[:redirect_index], output_file
+
+
 def main():
     """
     Main loop of the shell.
@@ -213,3 +229,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
