@@ -21,65 +21,75 @@ class Shell:
         sys.exit(0)
 
     def execute_echo(self, args):
+        """Executes the echo command with proper redirection handling."""
         output_file = None
         append_output_file = None
         error_file = None
         append_error_file = None
         echo_args = []
 
-        for i, arg in enumerate(args):
-            if arg in [">", "1>"]:
+        # Parse arguments for redirection
+        i = 0
+        while i < len(args):
+            if args[i] in [">", "1>"]:
                 if i + 1 < len(args):
                     output_file = args[i + 1]
-                    i += 1  # Skip file name
+                    i += 2  # Skip operator and file name
                 else:
                     print("Syntax error: no file specified for redirection", file=sys.stderr)
                     return
-            elif arg in [">>", "1>>"]:
+            elif args[i] in [">>", "1>>"]:
                 if i + 1 < len(args):
                     append_output_file = args[i + 1]
-                    i += 1  # Skip file name
+                    i += 2
                 else:
                     print("Syntax error: no file specified for append redirection", file=sys.stderr)
                     return
-            elif arg == "2>":
+            elif args[i] == "2>":
                 if i + 1 < len(args):
                     error_file = args[i + 1]
-                    i += 1  # Skip file name
+                    i += 2
                 else:
                     print("Syntax error: no file specified for error redirection", file=sys.stderr)
                     return
-            elif arg == "2>>":
+            elif args[i] == "2>>":
                 if i + 1 < len(args):
                     append_error_file = args[i + 1]
-                    i += 1  # Skip file name
+                    i += 2
                 else:
                     print("Syntax error: no file specified for error append redirection", file=sys.stderr)
                     return
             else:
-                echo_args.append(arg)
+                echo_args.append(args[i])
+                i += 1
 
         output = " ".join(echo_args)
 
-        if output_file:
-            os.makedirs(os.path.dirname(output_file), exist_ok=True)
-            with open(output_file, "w") as f:
-                f.write(output + "\n")
-        elif append_output_file:
-            os.makedirs(os.path.dirname(append_output_file), exist_ok=True)
-            with open(append_output_file, "a") as f:
-                f.write(output + "\n")
-        else:
-            print(output)
+        try:
+            # Handle stdout redirection
+            if output_file:
+                os.makedirs(os.path.dirname(output_file), exist_ok=True)
+                with open(output_file, "w") as f:
+                    f.write(output + "\n")
+            elif append_output_file:
+                os.makedirs(os.path.dirname(append_output_file), exist_ok=True)
+                with open(append_output_file, "a") as f:
+                    f.write(output + "\n")
+            else:
+                print(output)
 
-        if error_file:
-            os.makedirs(os.path.dirname(error_file), exist_ok=True)
-            with open(error_file, "w") as f:
-                pass  # No error for echo by default
-        elif append_error_file:
-            os.makedirs(os.path.dirname(append_error_file), exist_ok=True)
-            with open(append_error_file, "a") as f:
-                pass  # No error for echo by default
+            # Handle stderr redirection
+            if error_file:
+                os.makedirs(os.path.dirname(error_file), exist_ok=True)
+                with open(error_file, "w") as f:
+                    f.write("")  # No stderr for echo by default
+            elif append_error_file:
+                os.makedirs(os.path.dirname(append_error_file), exist_ok=True)
+                with open(append_error_file, "a") as f:
+                    f.write("")  # No stderr for echo by default
+
+        except IOError as e:
+            print(f"echo: {e}", file=sys.stderr)
 
     def execute_type(self, args):
         if not args:
