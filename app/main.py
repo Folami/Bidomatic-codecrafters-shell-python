@@ -9,7 +9,7 @@ class Shell:
         self.shell_home = os.getcwd()
         self.sh_builtins = ["echo", "exit", "type", "pwd", "cd"]
         self.completion_options = []  # Store completion options for the current cycle
-        self.completion_state = 0  # Track TAB presses for multiple completions
+        self.lcp = None  # Store longest common prefix
         self.setup_autocomplete()
 
     def setup_autocomplete(self):
@@ -17,14 +17,13 @@ class Shell:
         readline.set_completer(self.complete)
 
     def complete(self, text, state):
-        """Autocompletion function for built-in commands and external executables with trailing space."""
-        if state == 0:
-            self.completion_state += 1
+        """Autocompletion function with longest common prefix for multiple matches."""
+        if state == 0:  # First call for this input, generate options
             # Built-in commands
             builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
             
             # External executables from PATH
-            external_options = set()
+            external_options = set()  # Use set to avoid duplicates
             path_env = os.environ.get("PATH", "")
             if path_env:
                 paths = path_env.split(os.pathsep)
@@ -38,26 +37,58 @@ class Shell:
                                 file not in self.sh_builtins):
                                 external_options.add(file)
                     except (OSError, FileNotFoundError):
-                        continue
+                        continue  # Skip inaccessible directories
             
+            # Combine options
             self.completion_options = builtin_options + sorted(external_options)
 
-        if len(self.completion_options) > 1 and self.completion_state == 1:
-            sys.stdout.write("\a")  # Ring the bell
-            sys.stdout.flush()
-            return None
-        elif len(self.completion_options) > 1 and self.completion_state == 2:
-            print("\n" + "  ".join(self.completion_options))
-            sys.stdout.write("$ xyz_")  # Ensure prompt is reprinted correctly
-            sys.stdout.flush()
-            self.completion_state = 0  # Reset state
-            return None
+            # Compute longest common prefix if multiple matches
+            if len(self.completion_options) > 1:
+                self.lcp = self.compute_longest_common_prefix(self.completion_options)
+            else:
+                self.lcp = None
 
-        if state < len(self.completion_options):
-            return self.completion_options[state] + " "
-        
-        self.completion_state = 0  # Reset state if no matches
+        # Handle completion based on state (number of Tab presses)
+        if len(self.completion_options) == 1:
+            # Single match: complete fully with trailing space
+            return self.completion_options[0] + " "
+        elif len(self.completion_options) > 1 and self.lcp:
+            # Multiple matches: complete to longest common prefix
+            if state == 0:
+                # First Tab: complete to LCP if longer than input
+                if len(self.lcp) > len(text):
+                    return self.lcp
+                else:
+                    # If LCP is same as input, ring bell
+                    sys.stdout.write("\a")
+                    sys.stdout.flush()
+                    return None
+            elif state == 1:
+                # Second Tab: list all matches
+                print("\n" + "  ".join(self.completion_options))
+                print("$ " + readline.get_line_buffer(), end="", flush=True)
+                return None
+            else:
+                # Subsequent Tabs: cycle through options
+                return self.completion_options[state - 2] + " "
         return None
+
+    def compute_longest_common_prefix(self, options):
+        """Compute the longest common prefix of a list of strings."""
+        if not options:
+            return ""
+        if len(options) == 1:
+            return options[0]
+        
+        # Sort to ensure consistent comparison
+        sorted_options = sorted(options)
+        first = sorted_options[0]
+        last = sorted_options[-1]
+        
+        i = 0
+        while i < len(first) and i < len(last) and first[i] == last[i]:
+            i += 1
+        return first[:i]
 
 
     def input_prompt(self):
