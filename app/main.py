@@ -17,59 +17,43 @@ class Shell:
         readline.parse_and_bind("tab: complete")
         readline.set_completer(self.complete)
 
-    def complete(self, text, state):
-        """Autocompletion function for built-in commands and external executables."""
-        if state == 0:  # Reset on first call
-            self.completion_options = []
-            self.completion_text = text
-            self.completion_state = 0
+    To implement tab completion for executables with multiple matches, you can modify the complete method in your shell program. Here's an updated version of the method:
 
-            # Built-in commands
-            builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
 
-            # External executables from PATH
-            external_options = set()
-            path_env = os.environ.get("PATH", "")
-            if path_env:
-                paths = path_env.split(os.pathsep)
-                for dir in paths:
-                    try:
-                        for file in os.listdir(dir):
-                            file_path = os.path.join(dir, file)
-                            if (os.path.isfile(file_path) and
-                                os.access(file_path, os.X_OK) and
-                                file.startswith(text) and
-                                file not in self.sh_builtins):
-                                external_options.add(file)
-                    except (OSError, FileNotFoundError):
-                        continue
-
-            self.completion_options = builtin_options + sorted(external_options)
-
-        if len(self.completion_options) == 0:
-            return None
-
-        if len(self.completion_options) == 1:
-            return self.completion_options[0] + " "
-
-        if self.completion_state == 0:
-            sys.stdout.write('\a')  # Ring bell
-            sys.stdout.flush()
-            self.completion_state = 1
-            return None
-
-        if self.completion_state == 1:
-            print() # Print a new line
-            print("  ".join(self.completion_options))
-            print("$ " + self.completion_text, end="")
-            sys.stdout.flush()
-            self.completion_state = 2
-            return None
-
-        if self.completion_state >= 2:
-            if state < len(self.completion_options):
-                return self.completion_options[state] + " "
-            return None
+def complete(self, text, state):
+    """Autocompletion function for built-in commands and external executables with trailing space."""
+    if state == 0:
+        # First call for this input, generate options
+        builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
+        external_options = set()
+        path_env = os.environ.get("PATH", "")
+        if path_env:
+            paths = path_env.split(os.pathsep)
+            for dir in paths:
+                try:
+                    for file in os.listdir(dir):
+                        file_path = os.path.join(dir, file)
+                        if (os.path.isfile(file_path) and os.access(file_path, os.X_OK) and file.startswith(text) and file not in self.sh_builtins):
+                            external_options.add(file)
+                except (OSError, FileNotFoundError):
+                    continue
+        self.completion_options = builtin_options + sorted(external_options)
+        self.completion_state = state
+    if len(self.completion_options) == 1:
+        # Only one match, return it with a trailing space
+        return self.completion_options[0] + " "
+    elif len(self.completion_options) > 1 and self.completion_state == 0:
+        # Multiple matches, ring a bell on the first TAB press
+        print("\a", end="", flush=True)
+        self.completion_state += 1
+        return text
+    elif len(self.completion_options) > 1 and self.completion_state == 1:
+        # Multiple matches, print all matches on the second TAB press
+        print("\n" + "  ".join(self.completion_options) + "\n", end="")
+        print("$ ", end="", flush=True)
+        self.completion_state = 0
+        return text
+    return None
 
     def input_prompt(self):
         return input("$ ")
