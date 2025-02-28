@@ -16,9 +16,8 @@ class Shell:
         readline.set_completer(self.complete)  # Rename to match new method name
 
     def complete(self, text, state):
-        """Autocompletion function for built-in commands and external executables with trailing space."""
-        # Get all possible completions (built-ins and executables)
-        if state == 0:  # First call for this input, generate options
+        """Autocompletion function for built-ins and executables with multi-match handling."""
+        if state == 0:  # First Tab press: generate options
             # Built-in commands
             builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
             
@@ -39,12 +38,24 @@ class Shell:
                     except (OSError, FileNotFoundError):
                         continue  # Skip inaccessible directories
             
-            # Combine options and store for this completion cycle
+            # Combine options
             self.completion_options = builtin_options + sorted(external_options)
 
-        # Return the next match with a trailing space, or None if no more matches
+        # Handle completion based on state (number of Tab presses)
         if state < len(self.completion_options):
-            return self.completion_options[state] + " "
+            if state == 0 and len(self.completion_options) > 1:
+                # First Tab press with multiple matches: ring bell
+                sys.stdout.write("\a")
+                sys.stdout.flush()
+                return None  # No completion yet
+            elif state == 1 and len(self.completion_options) > 1:
+                # Second Tab press with multiple matches: display all options
+                print("\n" + "  ".join(self.completion_options))
+                print("$ " + readline.get_line_buffer(), end="", flush=True)
+                return None  # Keep the current input, don't complete yet
+            else:
+                # Single match or continued cycling: complete with trailing space
+                return self.completion_options[state] + " "
         return None
 
     def input_prompt(self):
