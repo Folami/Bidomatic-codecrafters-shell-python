@@ -15,9 +15,10 @@ class Shell:
         readline.set_completer(self.complete_builtin)
 
     def complete_builtin(self, text, state):
+        """Autocompletion function for built-in commands with trailing space."""
         options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
         if state < len(options):
-            return options[state]
+            return options[state] + " "  # Add trailing space to completed command
         return None
 
     def input_prompt(self):
