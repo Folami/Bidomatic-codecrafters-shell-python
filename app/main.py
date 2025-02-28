@@ -17,7 +17,7 @@ class Shell:
         readline.set_completer(self.complete)
 
     def complete(self, text, state):
-        """Autocompletion function for built-in commands and external executables with trailing space."""
+        """Autocompletion function for built-ins and executables with multi-match handling."""
         if state == 0:
             self.completion_state += 1
             # Built-in commands
@@ -31,28 +31,39 @@ class Shell:
                     try:
                         for file in os.listdir(dir):
                             file_path = os.path.join(dir, file)
-                            if (os.path.isfile(file_path) and os.access(file_path, os.X_OK) and file.startswith(text) and file not in self.sh_builtins):
+                            if (os.path.isfile(file_path) and 
+                                os.access(file_path, os.X_OK) and 
+                                file.startswith(text) and 
+                                file not in self.sh_builtins):
                                 external_options.add(file)
                     except (OSError, FileNotFoundError):
                         continue
             self.completion_options = builtin_options + sorted(external_options)
-            # Find the longest common prefix
+
+            # Compute longest common prefix for multiple matches
             if len(self.completion_options) > 1:
                 common_prefix = os.path.commonprefix(self.completion_options)
-                if common_prefix != text:
-                    return common_prefix + " "
-            if len(self.completion_options) > 1 and self.completion_state == 1:
-                sys.stdout.write("\a")  # Ring the bell
+                if common_prefix != text and self.completion_state == 1:
+                    return common_prefix  # Complete to LCP on first Tab if applicable
+                # Otherwise, proceed to bell/list behavior
+
+        # Handle multiple matches with bell/list behavior
+        if len(self.completion_options) > 1:
+            if self.completion_state == 1:
+                sys.stdout.write("\a")  # Ring the bell on first Tab
                 sys.stdout.flush()
                 return None
-            elif len(self.completion_options) > 1 and self.completion_state == 2:
-                print("\n" + " ".join(self.completion_options))
-                sys.stdout.write("$ " + text)  # Ensure prompt is reprinted correctly
+            elif self.completion_state == 2:
+                print("\n" + "  ".join(self.completion_options))  # Two spaces between options
+                sys.stdout.write("$ " + text)  # Reprint prompt with current input
                 sys.stdout.flush()
                 self.completion_state = 0  # Reset state
                 return None
+
+        # Single match or cycling through options
         if state < len(self.completion_options):
             return self.completion_options[state] + " "
+        
         self.completion_state = 0  # Reset state if no matches
         return None
 
