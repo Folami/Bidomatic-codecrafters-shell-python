@@ -46,11 +46,12 @@ class Shell:
                 sys.stdout.flush()
                 return None
             elif len(self.completion_options) > 1 and self.completion_state == 2:
-                print("\n" + " ".join(self.completion_options))
+                print("\n" + "  ".join(self.completion_options))  # Print options with two spaces
                 sys.stdout.write("$ " + text)  # Ensure prompt is reprinted correctly
                 sys.stdout.flush()
                 self.completion_state = 0  # Reset state
                 return None
+
         if state < len(self.completion_options):
             return self.completion_options[state] + " "
         self.completion_state = 0  # Reset state if no matches
