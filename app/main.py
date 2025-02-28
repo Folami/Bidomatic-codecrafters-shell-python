@@ -125,6 +125,7 @@ class Shell:
         return None
 
     def run_external_command(self, command, args):
+        """Executes an external command with support for redirection."""
         executable = self.find_executable(command)
         if not executable:
             print(f"{command}: command not found", file=sys.stderr)
@@ -136,80 +137,99 @@ class Shell:
         append_error_file = None
         command_with_args = [command]
 
-        for i, arg in enumerate(args):
-            if arg in [">", "1>"]:
+        # Parse arguments for redirection
+        i = 0
+        while i < len(args):
+            if args[i] in [">", "1>"]:
                 if i + 1 < len(args):
                     output_file = args[i + 1]
-                    i += 1  # Skip file name
+                    i += 2  # Skip operator and file name
                 else:
                     print("Syntax error: no file specified for redirection", file=sys.stderr)
                     return
-            elif arg in [">>", "1>>"]:
+            elif args[i] in [">>", "1>>"]:
                 if i + 1 < len(args):
                     append_output_file = args[i + 1]
-                    i += 1  # Skip file name
+                    i += 2
                 else:
                     print("Syntax error: no file specified for append redirection", file=sys.stderr)
                     return
-            elif arg == "2>":
+            elif args[i] == "2>":
                 if i + 1 < len(args):
                     error_file = args[i + 1]
-                    i += 1  # Skip file name
+                    i += 2
                 else:
                     print("Syntax error: no file specified for error redirection", file=sys.stderr)
                     return
-            elif arg == "2>>":
+            elif args[i] == "2>>":
                 if i + 1 < len(args):
                     append_error_file = args[i + 1]
-                    i += 1  # Skip file name
+                    i += 2
                 else:
                     print("Syntax error: no file specified for error append redirection", file=sys.stderr)
                     return
             else:
-                command_with_args.append(arg)
+                command_with_args.append(args[i])
+                i += 1
 
         try:
-            # Handle redirection
-            stdout_redirect = None
-            stderr_redirect = None
+            # Configure redirection targets
+            stdout_target = None
+            stderr_target = None
 
             if output_file:
                 os.makedirs(os.path.dirname(output_file), exist_ok=True)
-                stdout_redirect = open(output_file, "w")
+                stdout_target = open(output_file, "w")
             elif append_output_file:
                 os.makedirs(os.path.dirname(append_output_file), exist_ok=True)
-                stdout_redirect = open(append_output_file, "a")
+                stdout_target = open(append_output_file, "a")
 
             if error_file:
                 os.makedirs(os.path.dirname(error_file), exist_ok=True)
-                stderr_redirect = open(error_file, "w")
+                stderr_target = open(error_file, "w")
             elif append_error_file:
                 os.makedirs(os.path.dirname(append_error_file), exist_ok=True)
-                stderr_redirect = open(append_error_file, "a")
+                stderr_target = open(append_error_file, "a")
 
-            process = subprocess.Popen(command_with_args,
-                                    stdout=stdout_redirect,
-                                    stderr=stderr_redirect)
+            # Use pipes only if no redirection for that stream
+            stdout_pipe = subprocess.PIPE if not stdout_target else None
+            stderr_pipe = subprocess.PIPE if not stderr_target else None
 
-            # If no redirection, capture output and error
-            if not stdout_redirect and not stderr_redirect:
-                process = subprocess.Popen(command_with_args,
-                                        stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE)
-                output, error = process.communicate()
-                print(output.decode(), end='')
-                print(error.decode(), file=sys.stderr)
+            # Start the process
+            process = subprocess.Popen(
+                command_with_args,
+                stdout=stdout_target if stdout_target else stdout_pipe,
+                stderr=stderr_target if stderr_target else stderr_pipe,
+                text=True
+            )
 
-            process.wait()
-            if process.returncode != 0:
-                if output_file or append_output_file or error_file or append_error_file:
-                    pass  # Do not print generic error message if output or error is redirected
-                else:
-                    print(f"{command}: command failed with exit code {process.returncode}", file=sys.stderr)
+            # Handle output/error if piped
+            if stdout_pipe or stderr_pipe:
+                stdout_content, stderr_content = process.communicate()
+                if stdout_pipe:
+                    print(stdout_content or '', end='')
+                if stderr_pipe:
+                    print(stderr_content or '', file=sys.stderr, end='')
+            else:
+                process.wait()
+
+            # Close redirected files
+            if stdout_target:
+                stdout_target.close()
+            if stderr_target:
+                stderr_target.close()
+
+            # Check return code
+            return_code = process.returncode
+            if return_code != 0 and not (output_file or append_output_file or error_file or append_error_file):
+                print(f"{command}: command failed with exit code {return_code}", file=sys.stderr)
 
         except Exception as e:
             print(f"{command}: {e}", file=sys.stderr)
-
+            if stdout_target:
+                stdout_target.close()
+            if stderr_target:
+                stderr_target.close()
 
     def run(self):
         while True:
