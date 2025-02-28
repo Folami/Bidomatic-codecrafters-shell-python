@@ -17,13 +17,13 @@ class Shell:
 
     def complete(self, text, state):
         """Autocompletion function for built-in commands and external executables with trailing space."""
-        # Get all possible completions (built-ins and executables)
-        if state == 0:  # First call for this input, generate options
+        if state == 0:
+            self.completion_state += 1
             # Built-in commands
             builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
             
             # External executables from PATH
-            external_options = set()  # Use set to avoid duplicates
+            external_options = set()
             path_env = os.environ.get("PATH", "")
             if path_env:
                 paths = path_env.split(os.pathsep)
@@ -34,34 +34,28 @@ class Shell:
                             if (os.path.isfile(file_path) and 
                                 os.access(file_path, os.X_OK) and 
                                 file.startswith(text) and 
-                                file not in self.sh_builtins):  # Exclude built-ins
+                                file not in self.sh_builtins):
                                 external_options.add(file)
                     except (OSError, FileNotFoundError):
-                        continue  # Skip inaccessible directories
+                        continue
             
-            # Combine options and store for this completion cycle
-            self.builtin_options = builtin_options
-            self.external_options = sorted(external_options)
+            self.completion_options = builtin_options + sorted(external_options)
 
-        # Handle multiple matches
-        if len(self.external_options) > 1:
-            if state == 1:
-                print("\a")  # Ring the bell on first TAB press
-                return None
-            elif state == 2:
-                print("\n" + "  ".join(self.external_options))  # Print external options with two spaces
-                return None
-
-        # Handle single or no matches
-        if len(self.builtin_options) == 1 and not self.external_options:
-            if state < len(self.builtin_options):
-                return self.builtin_options[state] + " "
+        if len(self.completion_options) > 1 and self.completion_state == 1:
+            sys.stdout.write("\a")  # Ring the bell
+            sys.stdout.flush()
             return None
-        elif self.external_options:
-            if state < len(self.external_options):
-                return self.external_options[state] + " "
+        elif len(self.completion_options) > 1 and self.completion_state == 2:
+            print("\n" + "  ".join(self.completion_options))
+            sys.stdout.write("$ ")  # Reprint prompt
+            sys.stdout.flush()
+            self.completion_state = 0  # Reset state
             return None
 
+        if state < len(self.completion_options):
+            return self.completion_options[state] + " "
+        
+        self.completion_state = 0  # Reset state if no matches
         return None
 
 
