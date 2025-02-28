@@ -40,12 +40,30 @@ class Shell:
                         continue  # Skip inaccessible directories
             
             # Combine options and store for this completion cycle
-            self.completion_options = builtin_options + sorted(external_options)
+            self.builtin_options = builtin_options
+            self.external_options = sorted(external_options)
 
-        # Return the next match with a trailing space, or None if no more matches
-        if state < len(self.completion_options):
-            return self.completion_options[state] + " "
+        # Handle multiple matches
+        if len(self.external_options) > 1:
+            if state == 1:
+                print("\a")  # Ring the bell on first TAB press
+                return None
+            elif state == 2:
+                print("\n" + "  ".join(self.external_options))  # Print external options with two spaces
+                return None
+
+        # Handle single or no matches
+        if len(self.builtin_options) == 1 and not self.external_options:
+            if state < len(self.builtin_options):
+                return self.builtin_options[state] + " "
+            return None
+        elif self.external_options:
+            if state < len(self.external_options):
+                return self.external_options[state] + " "
+            return None
+
         return None
+
 
     def input_prompt(self):
         return input("$ ")
