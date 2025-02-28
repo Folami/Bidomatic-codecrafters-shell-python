@@ -4,6 +4,7 @@ import shlex
 import sys
 import readline
 
+
 class Shell:
     def __init__(self):
         self.shell_home = os.getcwd()
@@ -17,45 +18,43 @@ class Shell:
         readline.set_completer(self.complete)
 
     def complete(self, text, state):
-        """Autocompletion function for built-in commands and external executables with trailing space."""
         if state == 0:
             self.completion_state += 1
-            # Built-in commands
-            builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
-            # External executables from PATH
-            external_options = set()
-            path_env = os.environ.get("PATH", "")
-            if path_env:
-                paths = path_env.split(os.pathsep)
-                for dir in paths:
-                    try:
-                        for file in os.listdir(dir):
-                            file_path = os.path.join(dir, file)
-                            if (os.path.isfile(file_path) and os.access(file_path, os.X_OK) and file.startswith(text) and file not in self.sh_builtins):
-                                external_options.add(file)
-                    except (OSError, FileNotFoundError):
-                        continue
-            self.completion_options = builtin_options + sorted(external_options)
-            # Find the longest common prefix
+            self.completion_options = self._get_completion_options(text)
             if len(self.completion_options) > 1:
                 common_prefix = os.path.commonprefix(self.completion_options)
                 if common_prefix != text:
                     return common_prefix + " "
             if len(self.completion_options) > 1 and self.completion_state == 1:
-                sys.stdout.write("\a")  # Ring the bell
+                sys.stdout.write("\a")
                 sys.stdout.flush()
                 return None
             elif len(self.completion_options) > 1 and self.completion_state == 2:
-                print("\n" + "  ".join(self.completion_options))  # Print options with two spaces
-                sys.stdout.write("$ " + text)  # Ensure prompt is reprinted correctly
+                print("\n" + "  ".join(self.completion_options))
+                sys.stdout.write("$ " + text)
                 sys.stdout.flush()
-                self.completion_state = 0  # Reset state
+                self.completion_state = 0
                 return None
-
         if state < len(self.completion_options):
             return self.completion_options[state] + " "
-        self.completion_state = 0  # Reset state if no matches
+        self.completion_state = 0
         return None
+
+    def _get_completion_options(self, text):
+        builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
+        external_options = set()
+        path_env = os.environ.get("PATH", "")
+        if path_env:
+            paths = path_env.split(os.pathsep)
+            for dir in paths:
+                try:
+                    for file in os.listdir(dir):
+                        file_path = os.path.join(dir, file)
+                        if (os.path.isfile(file_path) and os.access(file_path, os.X_OK) and file.startswith(text) and file not in self.sh_builtins):
+                            external_options.add(file)
+                except (OSError, FileNotFoundError):
+                    continue
+        return builtin_options + sorted(external_options)
 
 
     def input_prompt(self):
@@ -71,75 +70,48 @@ class Shell:
         sys.exit(0)
 
     def execute_echo(self, args):
-        """Executes the echo command with proper redirection handling."""
-        output_file = None
-        append_output_file = None
-        error_file = None
-        append_error_file = None
-        echo_args = []
+        output, error = self._parse_redirection(args)
+        output_str = " ".join(output)
+        self._handle_redirection(output_str, error)
 
-        # Parse arguments for redirection
+    def _parse_redirection(self, args):
+        output_args = []
+        redirections = {"stdout": None, "stderr": None}
         i = 0
         while i < len(args):
             if args[i] in [">", "1>"]:
-                if i + 1 < len(args):
-                    output_file = args[i + 1]
-                    i += 2  # Skip operator and file name
-                else:
-                    print("Syntax error: no file specified for redirection", file=sys.stderr)
-                    return
+                redirections["stdout"] = (args[i + 1], "w")
+                i += 2
             elif args[i] in [">>", "1>>"]:
-                if i + 1 < len(args):
-                    append_output_file = args[i + 1]
-                    i += 2
-                else:
-                    print("Syntax error: no file specified for append redirection", file=sys.stderr)
-                    return
+                redirections["stdout"] = (args[i + 1], "a")
+                i += 2
             elif args[i] == "2>":
-                if i + 1 < len(args):
-                    error_file = args[i + 1]
-                    i += 2
-                else:
-                    print("Syntax error: no file specified for error redirection", file=sys.stderr)
-                    return
+                redirections["stderr"] = (args[i + 1], "w")
+                i += 2
             elif args[i] == "2>>":
-                if i + 1 < len(args):
-                    append_error_file = args[i + 1]
-                    i += 2
-                else:
-                    print("Syntax error: no file specified for error append redirection", file=sys.stderr)
-                    return
+                redirections["stderr"] = (args[i + 1], "a")
+                i += 2
             else:
-                echo_args.append(args[i])
+                output_args.append(args[i])
                 i += 1
+        return output_args, redirections
 
-        output = " ".join(echo_args)
-
+    def _handle_redirection(self, output_str, redirections):
         try:
-            # Handle stdout redirection
-            if output_file:
-                os.makedirs(os.path.dirname(output_file), exist_ok=True)
-                with open(output_file, "w") as f:
-                    f.write(output + "\n")
-            elif append_output_file:
-                os.makedirs(os.path.dirname(append_output_file), exist_ok=True)
-                with open(append_output_file, "a") as f:
-                    f.write(output + "\n")
+            if redirections["stdout"]:
+                self._write_to_file(output_str, redirections["stdout"][0], redirections["stdout"][1])
             else:
-                print(output)
-
-            # Handle stderr redirection
-            if error_file:
-                os.makedirs(os.path.dirname(error_file), exist_ok=True)
-                with open(error_file, "w") as f:
-                    f.write("")  # No stderr for echo by default
-            elif append_error_file:
-                os.makedirs(os.path.dirname(append_error_file), exist_ok=True)
-                with open(append_error_file, "a") as f:
-                    f.write("")  # No stderr for echo by default
-
+                print(output_str)
+            if redirections["stderr"]:
+                self._write_to_file("", redirections["stderr"][0], redirections["stderr"][1])
         except IOError as e:
             print(f"echo: {e}", file=sys.stderr)
+
+    def _write_to_file(self, content, filename, mode):
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        with open(filename, mode) as f:
+            f.write(content + "\n" if mode in ['w','a'] and content else content)
+
 
     def execute_type(self, args):
         if not args:
@@ -185,111 +157,43 @@ class Shell:
         return None
     
     def run_external_command(self, command, args):
-        """Executes an external command with support for redirection."""
         executable = self.find_executable(command)
         if not executable:
             print(f"{command}: command not found", file=sys.stderr)
             return
+        command_with_args, redirections = self._parse_redirection([command] + args)
+        self._run_process(command_with_args, redirections)
 
-        output_file = None
-        append_output_file = None
-        error_file = None
-        append_error_file = None
-        command_with_args = [command]
-
-        # Parse arguments for redirection
-        i = 0
-        while i < len(args):
-            if args[i] in [">", "1>"]:
-                if i + 1 < len(args):
-                    output_file = args[i + 1]
-                    i += 2  # Skip operator and file name
-                else:
-                    print("Syntax error: no file specified for redirection", file=sys.stderr)
-                    return
-            elif args[i] in [">>", "1>>"]:
-                if i + 1 < len(args):
-                    append_output_file = args[i + 1]
-                    i += 2
-                else:
-                    print("Syntax error: no file specified for append redirection", file=sys.stderr)
-                    return
-            elif args[i] == "2>":
-                if i + 1 < len(args):
-                    error_file = args[i + 1]
-                    i += 2
-                else:
-                    print("Syntax error: no file specified for error redirection", file=sys.stderr)
-                    return
-            elif args[i] == "2>>":
-                if i + 1 < len(args):
-                    append_error_file = args[i + 1]
-                    i += 2
-                else:
-                    print("Syntax error: no file specified for error append redirection", file=sys.stderr)
-                    return
-            else:
-                command_with_args.append(args[i])
-                i += 1
-
+    def _run_process(self, command_with_args, redirections):
         try:
-            # Configure redirection targets
-            stdout_target = None
-            stderr_target = None
-
-            if output_file:
-                os.makedirs(os.path.dirname(output_file), exist_ok=True)
-                stdout_target = open(output_file, "w")
-            elif append_output_file:
-                os.makedirs(os.path.dirname(append_output_file), exist_ok=True)
-                stdout_target = open(append_output_file, "a")
-
-            if error_file:
-                os.makedirs(os.path.dirname(error_file), exist_ok=True)
-                stderr_target = open(error_file, "w")
-            elif append_error_file:
-                os.makedirs(os.path.dirname(append_error_file), exist_ok=True)
-                stderr_target = open(append_error_file, "a")
-
-            # Use pipes only if no redirection for that stream
+            stdout_target = self._get_redirection_target(redirections.get("stdout"))
+            stderr_target = self._get_redirection_target(redirections.get("stderr"))
             stdout_pipe = subprocess.PIPE if not stdout_target else None
             stderr_pipe = subprocess.PIPE if not stderr_target else None
-
-            # Start the process
-            process = subprocess.Popen(
-                command_with_args,
-                stdout=stdout_target if stdout_target else stdout_pipe,
-                stderr=stderr_target if stderr_target else stderr_pipe,
-                text=True
-            )
-
-            # Handle output/error if piped
-            if stdout_pipe or stderr_pipe:
-                stdout_content, stderr_content = process.communicate()
-                if stdout_pipe:
-                    print(stdout_content or '', end='')
-                if stderr_pipe:
-                    print(stderr_content or '', file=sys.stderr, end='')
-            else:
-                process.wait()
-
-            # Close redirected files
+            process = subprocess.Popen(command_with_args, stdout=stdout_target or stdout_pipe, stderr=stderr_target or stderr_pipe, text=True)
+            stdout_content, stderr_content = process.communicate()
+            if stdout_pipe:
+                print(stdout_content or '', end='')
+            if stderr_pipe:
+                print(stderr_content or '', file=sys.stderr, end='')
             if stdout_target:
                 stdout_target.close()
             if stderr_target:
                 stderr_target.close()
-
-            # Check return code
-            return_code = process.returncode
-            if return_code != 0 and not (output_file or append_output_file or error_file or append_error_file):
-                print(f"{command}: command failed with exit code {return_code}", file=sys.stderr)
-
+            if process.returncode != 0 and not redirections.get("stdout") and not redirections.get("stderr"):
+                print(f"{command_with_args[0]}: command failed with exit code {process.returncode}", file=sys.stderr)
         except Exception as e:
-            print(f"{command}: {e}", file=sys.stderr)
+            print(f"{command_with_args[0]}: {e}", file=sys.stderr)
             if stdout_target:
                 stdout_target.close()
             if stderr_target:
                 stderr_target.close()
+
+    def _get_redirection_target(self, redirection):
+        if redirection:
+            os.makedirs(os.path.dirname(redirection[0]), exist_ok=True)
+            return open(redirection[0], redirection[1])
+        return None
 
     def run(self):
         while True:
