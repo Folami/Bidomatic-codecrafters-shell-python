@@ -2,14 +2,45 @@ import os
 import subprocess
 import shlex
 import sys
+import readline  # Add readline for autocompletion support
 
 class Shell:
     def __init__(self):
         self.shell_home = os.getcwd()
         self.sh_builtins = ["echo", "exit", "type", "pwd", "cd"]
+        # Set up autocompletion
+        readline.parse_and_bind("tab: complete")
+        readline.set_completer(self.complete)
+        readline.set_completer_delims(" \t\n")  # Ensure Tab works with spaces
 
+    def complete(self, text, state):
+        """Autocompletion function for built-in commands."""
+        if state == 0:  # First call for this input
+            # Get the current line up to the cursor
+            line = readline.get_line_buffer()
+            # Split line to get the current word being typed
+            words = line.split()
+            # If no words yet or only whitespace before cursor, suggest all builtins
+            if not words or line.endswith(" "):
+                self.matches = self.sh_builtins
+            else:
+                # Suggest builtins that start with the partial input (last word)
+                partial_input = words[-1] if words else text
+                self.matches = [cmd for cmd in self.sh_builtins if cmd.startswith(partial_input)]
+
+        # Return the next match or None if no more matches
+        try:
+            return self.matches[state]
+        except IndexError:
+            return None
+
+    
     def input_prompt(self):
-        return input("$ ")
+        """Prompts for input with autocompletion support."""
+        try:
+            return input("$ ")
+        except EOFError:
+            return None
 
     def execute_command(self, command, args):
         if command in self.sh_builtins:
