@@ -8,23 +8,22 @@ class Shell:
     def __init__(self):
         self.shell_home = os.getcwd()
         self.sh_builtins = ["echo", "exit", "type", "pwd", "cd"]
-        self.completion_options = []
-        self.completion_text = ""
-        self.completion_state = 0
+        self.completion_options = []  # Store completion options for the current cycle
         self.setup_autocomplete()
 
     def setup_autocomplete(self):
         readline.parse_and_bind("tab: complete")
-        readline.set_completer(self.complete)
-
-    
+        readline.set_completer(self.complete)  # Rename to match new method name
 
     def complete(self, text, state):
         """Autocompletion function for built-in commands and external executables with trailing space."""
-        if state == 0:
-            # First call for this input, generate options
+        # Get all possible completions (built-ins and executables)
+        if state == 0:  # First call for this input, generate options
+            # Built-in commands
             builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
-            external_options = set()
+            
+            # External executables from PATH
+            external_options = set()  # Use set to avoid duplicates
             path_env = os.environ.get("PATH", "")
             if path_env:
                 paths = path_env.split(os.pathsep)
@@ -32,26 +31,20 @@ class Shell:
                     try:
                         for file in os.listdir(dir):
                             file_path = os.path.join(dir, file)
-                            if (os.path.isfile(file_path) and os.access(file_path, os.X_OK) and file.startswith(text) and file not in self.sh_builtins):
+                            if (os.path.isfile(file_path) and 
+                                os.access(file_path, os.X_OK) and 
+                                file.startswith(text) and 
+                                file not in self.sh_builtins):  # Exclude built-ins
                                 external_options.add(file)
                     except (OSError, FileNotFoundError):
-                        continue
+                        continue  # Skip inaccessible directories
+            
+            # Combine options and store for this completion cycle
             self.completion_options = builtin_options + sorted(external_options)
-            self.completion_state = state
-        if len(self.completion_options) == 1:
-            # Only one match, return it with a trailing space
-            return self.completion_options[0] + " "
-        elif len(self.completion_options) > 1 and self.completion_state == 0:
-            # Multiple matches, ring a bell on the first TAB press
-            print("\a", end="", flush=True)
-            self.completion_state += 1
-            return text
-        elif len(self.completion_options) > 1 and self.completion_state == 1:
-            # Multiple matches, print all matches on the second TAB press
-            print("\n" + "  ".join(self.completion_options) + "\n", end="")
-            print("$ ", end="", flush=True)
-            self.completion_state = 0
-            return text
+
+        # Return the next match with a trailing space, or None if no more matches
+        if state < len(self.completion_options):
+            return self.completion_options[state] + " "
         return None
 
     def input_prompt(self):
