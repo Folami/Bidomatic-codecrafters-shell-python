@@ -8,9 +8,8 @@ class Shell:
     def __init__(self):
         self.shell_home = os.getcwd()
         self.sh_builtins = ["echo", "exit", "type", "pwd", "cd"]
-        self.completion_options = []
-        self.completion_text = ""
-        self.completion_state = 0
+        self.completion_options = []  # Store completion options for the current cycle
+        self.completion_state = 0  # Track TAB presses for multiple completions
         self.setup_autocomplete()
 
     def setup_autocomplete(self):
@@ -18,15 +17,11 @@ class Shell:
         readline.set_completer(self.complete)
 
     def complete(self, text, state):
-        """Autocompletion function for built-in commands and external executables."""
-        if state == 0:  # Reset on first call
-            self.completion_options = []
-            self.completion_text = text
-            self.completion_state = 0
-
+        """Autocompletion function for built-in commands and external executables with trailing space."""
+        if state == 0:
+            self.completion_state += 1
             # Built-in commands
             builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
-
             # External executables from PATH
             external_options = set()
             path_env = os.environ.get("PATH", "")
@@ -36,40 +31,31 @@ class Shell:
                     try:
                         for file in os.listdir(dir):
                             file_path = os.path.join(dir, file)
-                            if (os.path.isfile(file_path) and
-                                os.access(file_path, os.X_OK) and
-                                file.startswith(text) and
-                                file not in self.sh_builtins):
+                            if (os.path.isfile(file_path) and os.access(file_path, os.X_OK) and file.startswith(text) and file not in self.sh_builtins):
                                 external_options.add(file)
                     except (OSError, FileNotFoundError):
                         continue
-
             self.completion_options = builtin_options + sorted(external_options)
+            # Find the longest common prefix
+            if len(self.completion_options) > 1:
+                common_prefix = os.path.commonprefix(self.completion_options)
+                if common_prefix != text:
+                    return common_prefix + " "
+            if len(self.completion_options) > 1 and self.completion_state == 1:
+                sys.stdout.write("\a")  # Ring the bell
+                sys.stdout.flush()
+                return None
+            elif len(self.completion_options) > 1 and self.completion_state == 2:
+                print("\n" + " ".join(self.completion_options))
+                sys.stdout.write("$ " + text)  # Ensure prompt is reprinted correctly
+                sys.stdout.flush()
+                self.completion_state = 0  # Reset state
+                return None
+        if state < len(self.completion_options):
+            return self.completion_options[state] + " "
+        self.completion_state = 0  # Reset state if no matches
+        return None
 
-        if len(self.completion_options) == 0:
-            return None
-
-        if len(self.completion_options) == 1:
-            return self.completion_options[0] + " "
-
-        if self.completion_state == 0:
-            sys.stdout.write('\a')  # Ring bell
-            sys.stdout.flush()
-            self.completion_state = 1
-            return None
-
-        if self.completion_state == 1:
-            print() # Print a new line
-            print("  ".join(self.completion_options))
-            print("$ " + self.completion_text, end="")
-            sys.stdout.flush()
-            self.completion_state = 2
-            return None
-
-        if self.completion_state >= 2:
-            if state < len(self.completion_options):
-                return self.completion_options[state] + " "
-            return None
 
     def input_prompt(self):
         return input("$ ")
@@ -196,7 +182,7 @@ class Shell:
         if os.path.exists(file_path) and os.access(file_path, os.X_OK):
             return file_path
         return None
-
+    
     def run_external_command(self, command, args):
         """Executes an external command with support for redirection."""
         executable = self.find_executable(command)
@@ -218,6 +204,7 @@ class Shell:
                     output_file = args[i + 1]
                     i += 2  # Skip operator and file name
                 else:
+                    print("Syntax error: no file specified for redirection", file=sys.stderr)
                     return
             elif args[i] in [">>", "1>>"]:
                 if i + 1 < len(args):
