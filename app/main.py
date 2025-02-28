@@ -16,8 +16,19 @@ class Shell:
         readline.parse_and_bind("tab: complete")
         readline.set_completer(self.complete)
 
+    def longest_common_prefix(self, words):
+        if not words:
+            return ""
+        prefix = words[0]
+        for word in words[1:]:
+            while not word.startswith(prefix):
+                prefix = prefix[:-1]
+                if not prefix:
+                    return ""
+        return prefix
+
     def complete(self, text, state):
-        """Autocompletion function for built-in commands and external executables with trailing space."""
+        """Autocompletion function for built-in commands and external executables with longest common prefix handling."""
         if state == 0:
             self.completion_state += 1
             # Built-in commands
@@ -40,7 +51,15 @@ class Shell:
                     except (OSError, FileNotFoundError):
                         continue
             
-            self.completion_options = builtin_options + sorted(external_options)
+            self.completion_options = sorted(builtin_options + list(external_options))
+            
+            # Compute longest common prefix if multiple matches exist
+            if len(self.completion_options) > 1:
+                common_prefix = self.longest_common_prefix(self.completion_options)
+                if common_prefix and common_prefix != text:
+                    readline.insert_text(common_prefix)
+                    readline.redisplay()
+                    return None
 
         if len(self.completion_options) > 1 and self.completion_state == 1:
             sys.stdout.write("\a")  # Ring the bell
@@ -57,9 +76,9 @@ class Shell:
             return self.completion_options[state] + " "
         
         self.completion_state = 0  # Reset state if no matches
-        return None
-
-
+        return None    
+    
+    
     def input_prompt(self):
         return input("$ ")
 
