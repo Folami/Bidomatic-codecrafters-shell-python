@@ -322,7 +322,7 @@ class Shell:
                 continue
             try:
                 tokens = shlex.split(command_line)  # Tokenize the command line
-                if not tokens:
+                idf not tokens:
                     continue
 
                 command = tokens[0]  # Get the command
