@@ -125,85 +125,98 @@ class Shell:
         return None
 
     def run_external_command(self, command, args):
-        executable = self.find_executable(command)
-        if not executable:
-            print(f"{command}: command not found", file=sys.stderr)
-            return
+    """Executes an external command with support for redirection."""
+    executable = self.find_executable(command)
+    if not executable:
+        print(f"{command}: command not found", file=sys.stderr)
+        return
 
-        output_file = None
-        append_output_file = None
-        error_file = None
-        append_error_file = None
-        command_with_args = [command]
+    output_file = None
+    append_output_file = None
+    error_file = None
+    append_error_file = None
+    command_with_args = [command]
 
-        for i, arg in enumerate(args):
-            if arg in [">", "1>"]:
-                if i + 1 < len(args):
-                    output_file = args[i + 1]
-                    i += 1  # Skip file name
-                else:
-                    print("Syntax error: no file specified for redirection", file=sys.stderr)
-                    return
-            elif arg in [">>", "1>>"]:
-                if i + 1 < len(args):
-                    append_output_file = args[i + 1]
-                    i += 1  # Skip file name
-                else:
-                    print("Syntax error: no file specified for append redirection", file=sys.stderr)
-                    return
-            elif arg == "2>":
-                if i + 1 < len(args):
-                    error_file = args[i + 1]
-                    i += 1  # Skip file name
-                else:
-                    print("Syntax error: no file specified for error redirection", file=sys.stderr)
-                    return
-            elif arg == "2>>":
-                if i + 1 < len(args):
-                    append_error_file = args[i + 1]
-                    i += 1  # Skip file name
-                else:
-                    print("Syntax error: no file specified for error append redirection", file=sys.stderr)
-                    return
+    # Parse arguments for redirection
+    i = 0
+    while i < len(args):
+        if args[i] in [">", "1>"]:
+            if i + 1 < len(args):
+                output_file = args[i + 1]
+                i += 2  # Skip operator and file name
             else:
-                command_with_args.append(arg)
-
-        try:
-            process = subprocess.Popen(command_with_args,
-                                       stdout=subprocess.PIPE if output_file or append_output_file else None,
-                                       stderr=subprocess.PIPE if error_file or append_error_file else None)
-
-            if output_file:
-                os.makedirs(os.path.dirname(output_file), exist_ok=True)
-                with open(output_file, "w") as f:
-                    f.write(process.stdout.read().decode())
-            elif append_output_file:
-                os.makedirs(os.path.dirname(append_output_file), exist_ok=True)
-                with open(append_output_file, "a") as f:
-                    f.write(process.stdout.read().decode())
+                print("Syntax error: no file specified for redirection", file=sys.stderr)
+                return
+        elif args[i] in [">>", "1>>"]:
+            if i + 1 < len(args):
+                append_output_file = args[i + 1]
+                i += 2
             else:
-                print(process.stdout.read().decode(), end='')
-
-            if error_file:
-                os.makedirs(os.path.dirname(error_file), exist_ok=True)
-                with open(error_file, "w") as f:
-                    f.write(process.stderr.read().decode())
-            elif append_error_file:
-                os.makedirs(os.path.dirname(append_error_file), exist_ok=True)
-                with open(append_error_file, "a") as f:
-                    f.write(process.stderr.read().decode())
+                print("Syntax error: no file specified for append redirection", file=sys.stderr)
+                return
+        elif args[i] == "2>":
+            if i + 1 < len(args):
+                error_file = args[i + 1]
+                i += 2
             else:
-                print(process.stderr.read().decode(), file=sys.stderr)
+                print("Syntax error: no file specified for error redirection", file=sys.stderr)
+                return
+        elif args[i] == "2>>":
+            if i + 1 < len(args):
+                append_error_file = args[i + 1]
+                i += 2
+            else:
+                print("Syntax error: no file specified for error append redirection", file=sys.stderr)
+                return
+        else:
+            command_with_args.append(args[i])
+            i += 1
 
-            process.wait()
-            if process.returncode != 0:
-                if output_file or append_output_file or error_file or append_error_file:
-                    pass  # Do not print generic error message if output or error is redirected
-                else:
-                    print(f"{command}: command failed with exit code {process.returncode}", file=sys.stderr)
+    try:
+        # Configure subprocess with appropriate redirections
+        stdout_target = subprocess.PIPE if not (output_file or append_output_file) else None
+        stderr_target = subprocess.PIPE if not (error_file or append_error_file) else None
 
-        except Exception as e:
-            print(f"{command}: {e}", file=sys.stderr)
+        process = subprocess.Popen(
+            command_with_args,
+            stdout=stdout_target,
+            stderr=stderr_target,
+            text=True
+        )
+
+        # Handle stdout redirection
+        stdout_content = process.stdout.read() if process.stdout else ''
+        if output_file:
+            os.makedirs(os.path.dirname(output_file), exist_ok=True)
+            with open(output_file, "w") as f:
+                f.write(stdout_content)
+        elif append_output_file:
+            os.makedirs(os.path.dirname(append_output_file), exist_ok=True)
+            with open(append_output_file, "a") as f:
+                f.write(stdout_content)
+        else:
+            print(stdout_content, end='')
+
+        # Handle stderr redirection
+        stderr_content = process.stderr.read() if process.stderr else ''
+        if error_file:
+            os.makedirs(os.path.dirname(error_file), exist_ok=True)
+            with open(error_file, "w") as f:
+                f.write(stderr_content)
+        elif append_error_file:
+            os.makedirs(os.path.dirname(append_error_file), exist_ok=True)
+            with open(append_error_file, "a") as f:
+                f.write(stderr_content)
+        else:
+            print(stderr_content, file=sys.stderr, end='')
+
+        # Wait for process to complete
+        return_code = process.wait()
+        if return_code != 0 and not (output_file or append_output_file or error_file or append_error_file):
+            print(f"{command}: command failed with exit code {return_code}", file=sys.stderr)
+
+    except Exception as e:
+        print(f"{command}: {e}", file=sys.stderr)
 
     def run(self):
         while True:
