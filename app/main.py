@@ -48,7 +48,7 @@ class Shell:
             return None
         elif len(self.completion_options) > 1 and self.completion_state == 2:
             print("\n" + "  ".join(self.completion_options))
-            sys.stdout.write("$ ")  # Reprint prompt
+            sys.stdout.write("$ xyz_")  # Ensure prompt is reprinted correctly
             sys.stdout.flush()
             self.completion_state = 0  # Reset state
             return None
@@ -58,8 +58,6 @@ class Shell:
         
         self.completion_state = 0  # Reset state if no matches
         return None
-
-
 
 
     def input_prompt(self):
