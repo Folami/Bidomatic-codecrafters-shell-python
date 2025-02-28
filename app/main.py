@@ -16,19 +16,8 @@ class Shell:
         readline.parse_and_bind("tab: complete")
         readline.set_completer(self.complete)
 
-    def longest_common_prefix(self, words):
-        if not words:
-            return ""
-        prefix = words[0]
-        for word in words[1:]:
-            while not word.startswith(prefix):
-                prefix = prefix[:-1]
-                if not prefix:
-                    return ""
-        return prefix
-
     def complete(self, text, state):
-        """Autocompletion function for built-in commands and external executables with longest common prefix handling."""
+        """Autocompletion function for built-in commands and external executables with trailing space."""
         if state == 0:
             self.completion_state += 1
             # Built-in commands
@@ -51,34 +40,37 @@ class Shell:
                     except (OSError, FileNotFoundError):
                         continue
             
-            self.completion_options = sorted(builtin_options + list(external_options))
-            
-            # Compute longest common prefix if multiple matches exist
-            if len(self.completion_options) > 1:
-                common_prefix = self.longest_common_prefix(self.completion_options)
-                if common_prefix and common_prefix != text:
-                    readline.insert_text(common_prefix)
-                    readline.redisplay()
-                    return None
+            self.completion_options = builtin_options + sorted(external_options)
 
-        if len(self.completion_options) > 1 and self.completion_state == 1:
-            sys.stdout.write("\a")  # Ring the bell
-            sys.stdout.flush()
-            return None
-        elif len(self.completion_options) > 1 and self.completion_state == 2:
-            print("\n" + "  ".join(self.completion_options))
-            sys.stdout.write("$ xyz_")  # Ensure prompt is reprinted correctly
-            sys.stdout.flush()
-            self.completion_state = 0  # Reset state
+        # Handle multiple matches by finding the longest common prefix
+        if len(self.completion_options) > 1:
+            if self.completion_state == 1:
+                sys.stdout.write("\a")  # Ring the bell
+                sys.stdout.flush()
+                return None
+            elif self.completion_state > 1:
+                # Find the longest common prefix
+                prefix = self.completion_options[0]
+                for option in self.completion_options[1:]:
+                    while not option.startswith(prefix):
+                        prefix = prefix[:-1]
+                return prefix + " "
+
+        # Handle single or no matches
+        if len(self.completion_options) == 1:
+            if state == 0:
+                return self.completion_options[0] + " "
             return None
 
+        # Return the next match with a trailing space, or None if no more matches
         if state < len(self.completion_options):
             return self.completion_options[state] + " "
         
         self.completion_state = 0  # Reset state if no matches
-        return None    
-    
-    
+        return None
+
+
+
     def input_prompt(self):
         return input("$ ")
 
