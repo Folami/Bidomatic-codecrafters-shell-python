@@ -42,33 +42,22 @@ class Shell:
             
             self.completion_options = builtin_options + sorted(external_options)
 
-        # Handle multiple matches by finding the longest common prefix
-        if len(self.completion_options) > 1:
-            if self.completion_state == 1:
-                sys.stdout.write("\a")  # Ring the bell
-                sys.stdout.flush()
-                return None
-            elif self.completion_state > 1:
-                # Find the longest common prefix
-                prefix = self.completion_options[0]
-                for option in self.completion_options[1:]:
-                    while not option.startswith(prefix):
-                        prefix = prefix[:-1]
-                return prefix + " "
-
-        # Handle single or no matches
-        if len(self.completion_options) == 1:
-            if state == 0:
-                return self.completion_options[0] + " "
+        if len(self.completion_options) > 1 and self.completion_state == 1:
+            sys.stdout.write("\a")  # Ring the bell
+            sys.stdout.flush()
+            return None
+        elif len(self.completion_options) > 1 and self.completion_state == 2:
+            print("\n" + "  ".join(self.completion_options))
+            sys.stdout.write("$ xyz_")  # Ensure prompt is reprinted correctly
+            sys.stdout.flush()
+            self.completion_state = 0  # Reset state
             return None
 
-        # Return the next match with a trailing space, or None if no more matches
         if state < len(self.completion_options):
             return self.completion_options[state] + " "
         
         self.completion_state = 0  # Reset state if no matches
         return None
-
 
 
     def input_prompt(self):
