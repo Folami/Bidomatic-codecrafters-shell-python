@@ -8,8 +8,9 @@ class Shell:
     def __init__(self):
         self.shell_home = os.getcwd()
         self.sh_builtins = ["echo", "exit", "type", "pwd", "cd"]
-        self.completion_options = []  # Store completion options for the current cycle
-        self.lcp = None  # Store longest common prefix
+        self.completion_options = []
+        self.completion_text = ""
+        self.completion_state = 0
         self.setup_autocomplete()
 
     def setup_autocomplete(self):
@@ -17,13 +18,17 @@ class Shell:
         readline.set_completer(self.complete)
 
     def complete(self, text, state):
-        """Autocompletion function with longest common prefix for multiple matches."""
-        if state == 0:  # First call for this input, generate options
+        """Autocompletion function for built-in commands and external executables."""
+        if state == 0:  # Reset on first call
+            self.completion_options = []
+            self.completion_text = text
+            self.completion_state = 0
+
             # Built-in commands
             builtin_options = [cmd for cmd in self.sh_builtins if cmd.startswith(text)]
-            
+
             # External executables from PATH
-            external_options = set()  # Use set to avoid duplicates
+            external_options = set()
             path_env = os.environ.get("PATH", "")
             if path_env:
                 paths = path_env.split(os.pathsep)
@@ -31,65 +36,40 @@ class Shell:
                     try:
                         for file in os.listdir(dir):
                             file_path = os.path.join(dir, file)
-                            if (os.path.isfile(file_path) and 
-                                os.access(file_path, os.X_OK) and 
-                                file.startswith(text) and 
+                            if (os.path.isfile(file_path) and
+                                os.access(file_path, os.X_OK) and
+                                file.startswith(text) and
                                 file not in self.sh_builtins):
                                 external_options.add(file)
                     except (OSError, FileNotFoundError):
-                        continue  # Skip inaccessible directories
-            
-            # Combine options
+                        continue
+
             self.completion_options = builtin_options + sorted(external_options)
 
-            # Compute longest common prefix if multiple matches
-            if len(self.completion_options) > 1:
-                self.lcp = self.compute_longest_common_prefix(self.completion_options)
-            else:
-                self.lcp = None
+        if len(self.completion_options) == 0:
+            return None
 
-        # Handle completion based on state (number of Tab presses)
         if len(self.completion_options) == 1:
-            # Single match: complete fully with trailing space
             return self.completion_options[0] + " "
-        elif len(self.completion_options) > 1 and self.lcp:
-            # Multiple matches: complete to longest common prefix
-            if state == 0:
-                # First Tab: complete to LCP if longer than input
-                if len(self.lcp) > len(text):
-                    return self.lcp
-                else:
-                    # If LCP is same as input, ring bell
-                    sys.stdout.write("\a")
-                    sys.stdout.flush()
-                    return None
-            elif state == 1:
-                # Second Tab: list all matches
-                print("\n" + "  ".join(self.completion_options))
-                print("$ " + readline.get_line_buffer(), end="", flush=True)
-                return None
-            else:
-                # Subsequent Tabs: cycle through options
-                return self.completion_options[state - 2] + " "
-        return None
 
-    def compute_longest_common_prefix(self, options):
-        """Compute the longest common prefix of a list of strings."""
-        if not options:
-            return ""
-        if len(options) == 1:
-            return options[0]
-        
-        # Sort to ensure consistent comparison
-        sorted_options = sorted(options)
-        first = sorted_options[0]
-        last = sorted_options[-1]
-        
-        i = 0
-        while i < len(first) and i < len(last) and first[i] == last[i]:
-            i += 1
-        return first[:i]
+        if self.completion_state == 0:
+            sys.stdout.write('\a')  # Ring bell
+            sys.stdout.flush()
+            self.completion_state = 1
+            return None
 
+        if self.completion_state == 1:
+            print() # Print a new line
+            print("  ".join(self.completion_options))
+            print("$ " + self.completion_text, end="")
+            sys.stdout.flush()
+            self.completion_state = 2
+            return None
+
+        if self.completion_state >= 2:
+            if state < len(self.completion_options):
+                return self.completion_options[state] + " "
+            return None
 
     def input_prompt(self):
         return input("$ ")
@@ -216,7 +196,7 @@ class Shell:
         if os.path.exists(file_path) and os.access(file_path, os.X_OK):
             return file_path
         return None
-    
+
     def run_external_command(self, command, args):
         """Executes an external command with support for redirection."""
         executable = self.find_executable(command)
@@ -238,7 +218,6 @@ class Shell:
                     output_file = args[i + 1]
                     i += 2  # Skip operator and file name
                 else:
-                    print("Syntax error: no file specified for redirection", file=sys.stderr)
                     return
             elif args[i] in [">>", "1>>"]:
                 if i + 1 < len(args):
