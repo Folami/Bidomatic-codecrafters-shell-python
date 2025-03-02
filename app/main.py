@@ -16,7 +16,6 @@ class Shell:
         self.completion_options = []  # List to store autocompletion options
         self.completion_state = 0  # State variable to track multiple tab presses for autocompletion
         self.setup_autocomplete()  # Set up autocompletion functionality
-        s
 
     def setup_autocomplete(self):
         """
