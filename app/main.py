@@ -2,6 +2,7 @@ import os
 import subprocess
 import shlex
 import sys
+import readline
 
 
 class Shell:
