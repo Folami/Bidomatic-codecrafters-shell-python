@@ -43,16 +43,18 @@ class Shell:
                 common_prefix = os.path.commonprefix(self.completion_options)  # Get the longest common prefix
                 if common_prefix != text:  # If the common prefix is different from the input text
                     return common_prefix + " "  # Return the common prefix with a space
-            if len(self.completion_options) > 1 and self.completion_state == 1:  # If multiple options and first tab press
-                sys.stdout.write("\a")  # Ring the bell
-                sys.stdout.flush()
-                return None
-            elif len(self.completion_options) > 1 and self.completion_state == 2:  # If multiple options and second tab press
-                print("\n" + "  ".join(self.completion_options))  # Print completion options with spaces
-                sys.stdout.write("$ " + text)  # Reprint the prompt
-                sys.stdout.flush()
-                self.completion_state = 0  # Reset completion state
-                return None
+                
+                if self.completion_state == 1:  # If multiple options and first tab press
+                    sys.stdout.write("\a")  # Ring the bell
+                    sys.stdout.flush()
+                    return None
+                elif self.completion_state == 2:  # If multiple options and second tab press
+                    print("\n" + "  ".join(self.completion_options))  # Print completion options with spaces
+                    sys.stdout.write("$ " + text)  # Reprint the prompt
+                    sys.stdout.flush()
+                    self.completion_state = 0  # Reset completion state
+                    return None
+                
         if state < len(self.completion_options):  # If there are more completion options
             return self.completion_options[state] + " "  # Return the next completion option with a space
         self.completion_state = 0  # Reset completion state if no more options
