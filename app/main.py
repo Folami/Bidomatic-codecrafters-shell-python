@@ -35,7 +35,7 @@ class Shell:
 
         Returns:
             str: The completed text or None.
-        """
+        ""
         if state == 0:  # Reset completion state on the first call
             self.completion_state += 1  # Increment the completion state
             self.completion_options = self._get_completion_options(text)  # Get completion options
@@ -43,7 +43,6 @@ class Shell:
                 common_prefix = os.path.commonprefix(self.completion_options)  # Get the longest common prefix
                 if common_prefix != text:  # If the common prefix is different from the input text
                     return common_prefix + " "  # Return the common prefix with a space
-                
                 if self.completion_state == 1:  # If multiple options and first tab press
                     sys.stdout.write("\a")  # Ring the bell
                     sys.stdout.flush()
