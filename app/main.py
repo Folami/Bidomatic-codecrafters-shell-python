@@ -35,7 +35,7 @@ class Shell:
 
         Returns:
             str: The completed text or None.
-        ""
+        """
         if state == 0:  # Reset completion state on the first call
             self.completion_state += 1  # Increment the completion state
             self.completion_options = self._get_completion_options(text)  # Get completion options
